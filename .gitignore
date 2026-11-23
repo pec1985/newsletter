@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+/dist
+
+# Tests and coverage
+/coverage/
+/playwright-report/
+/test-results/
+
+# Logs and compiler cache
+*.log
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Paraglide
+src/lib/paraglide
+project.inlang/cache/
