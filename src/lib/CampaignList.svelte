@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import Icon from '#lib/Icon.svelte';
+	import { formatCampaignDate } from '#lib/campaign-dates.js';
 	import { campaignStatus, campaignAction } from '#lib/navigation.js';
 	let { data, busy, oncreate }: { data: LayoutData; busy: string; oncreate: () => Promise<void> } =
 		$props();
@@ -8,6 +9,7 @@
 	const filters = [
 		{ id: 'all', label: 'All campaigns' },
 		{ id: 'draft', label: 'Drafts' },
+		{ id: 'scheduled', label: 'Scheduled' },
 		{ id: 'sending', label: 'Sending' },
 		{ id: 'sent', label: 'Sent' },
 		{ id: 'attention', label: 'Needs attention' }
@@ -17,10 +19,10 @@
 	);
 	const deliveryCounts = $derived.by(() => {
 		const result = new Map<string, { total: number; sent: number }>();
-		for (const delivery of data.deliveries) {
+		for (const delivery of data.deliverySummaries) {
 			const counts = result.get(delivery.campaign_id) || { total: 0, sent: 0 };
-			counts.total++;
-			if (delivery.status === 'sent') counts.sent++;
+			counts.total += delivery.total;
+			counts.sent += delivery.sent;
 			result.set(delivery.campaign_id, counts);
 		}
 		return result;
@@ -66,7 +68,7 @@
 					<th scope="col">Campaign</th><th scope="col">Status</th><th scope="col">Recipients</th><th
 						scope="col"
 					>
-						Updated
+						Dates
 					</th><th scope="col"><span class="sr-only">Action</span></th>
 				</tr>
 			</thead>
@@ -97,7 +99,11 @@
 								</small>{/if}
 						</td>
 						<td>{campaign.status === 'draft' ? '—' : counts?.total || 0}</td>
-						<td class="date-cell">{date(campaign.updated_at)}</td>
+						<td class="date-cell">
+							{#if campaign.scheduled_at}<small>
+									Send on {formatCampaignDate(campaign.scheduled_at)}
+								</small>{/if}{#if !campaign.scheduled_at}{date(campaign.updated_at)}{/if}
+						</td>
 						<td>
 							<a
 								class="row-action"

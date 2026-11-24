@@ -6,6 +6,14 @@
 	import KnowledgePanel from '#lib/KnowledgePanel.svelte';
 	import AppShell from '#lib/AppShell.svelte';
 	import CampaignList from '#lib/CampaignList.svelte';
+	import CampaignStats from '#lib/CampaignStats.svelte';
+	import DeadlinePicker from '#lib/DeadlinePicker.svelte';
+	import ServiceValidation from '#lib/ServiceValidation.svelte';
+	import ContactsApiDocs from '#lib/ContactsApiDocs.svelte';
+	import ApiKeysPanel from '#lib/ApiKeysPanel.svelte';
+	import { localDateTime, formatCampaignDate } from '#lib/campaign-dates.js';
+	import { campaignStatus } from '#lib/navigation.js';
+	import { summarizeDeliveries } from '#lib/delivery-stats.js';
 	import { workspaceLinks, settingsLinks } from '#lib/navigation.js';
 	import { summarizeSpend } from '#lib/ai-cost.js';
 	import { renderEmail } from '#lib/email.js';
@@ -48,6 +56,8 @@
 	let sourceLocale = $state(initialCampaign?.source_locale || 'en');
 	let showAudience = $state(false);
 	let showSpend = $state(false);
+	let scheduledAt = $state(localDateTime(initialCampaign?.scheduled_at));
+	let timezone = $state('');
 	let subject = $state(initialCampaign?.subject || '');
 	let body = $state(initialCampaign?.body || '');
 	const title = $derived(subject.trim() || 'Untitled campaign');
@@ -67,12 +77,7 @@
 	let contactName = $state('');
 	let contactEmail = $state('');
 	let newLocale = $state('en');
-	let showReview = $state(false);
-	let deliveryMode = $state('local');
-	let previewLocale = $state(initialCampaign?.source_locale || 'en');
 	let config = $state<Record<string, string>>(untrack(() => ({ ...data.config })));
-	let generatedKey = $state('');
-	let selectedDelivery = $state('');
 	let loadedStamp = initialCampaign ? `${initialCampaign.id}:${initialCampaign.updated_at}` : '';
 	let editingContactId = $state('');
 	let bodyInput = $state<HTMLTextAreaElement>();
@@ -105,11 +110,9 @@
 			(rows.some((row) => row.cost_usd === null) ? ' + unknown' : '')
 		);
 	};
-	const campaignDeliveries = $derived(
-		data.deliveries.filter((d) => d.campaign_id === campaign?.id)
+	const deliverySummary = $derived(
+		summarizeDeliveries(data.deliverySummaries.filter((d) => d.campaign_id === campaign?.id))
 	);
-	const versions = $derived(data.versions.filter((v) => v.campaign_id === campaign?.id));
-	const currentVersion = $derived(versions.find((v) => v.locale === previewLocale));
 	const eligible = $derived(
 		data.contacts.filter((c) => !c.unsubscribed && !c.suppressed && audience.includes(c.locale))
 	);
@@ -146,11 +149,11 @@
 				`${c.name} ${c.email}`.toLowerCase().includes(contactSearch.toLowerCase())
 		)
 	);
-	const opened = $derived(campaignDeliveries.filter((d) => d.first_opened_at).length);
 	const dirty = $derived(
 		section === 'campaign' &&
 			campaign?.status === 'draft' &&
-			(subject !== campaign.subject ||
+			(scheduledAt !== localDateTime(campaign.scheduled_at) ||
+				subject !== campaign.subject ||
 				body !== campaign.body ||
 				sourceLocale !== campaign.source_locale ||
 				JSON.stringify(audience) !== JSON.stringify(campaign.locales))
@@ -169,11 +172,11 @@
 	$effect(() => {
 		if (campaign && loadedStamp !== `${campaign.id}:${campaign.updated_at}`) {
 			loadedStamp = `${campaign.id}:${campaign.updated_at}`;
+			scheduledAt = localDateTime(campaign.scheduled_at);
 			subject = campaign.subject;
 			body = campaign.body;
 			audience = campaign.locales.filter((locale: string) => audienceLocales.includes(locale));
 			sourceLocale = campaign.source_locale;
-			previewLocale = campaign.source_locale;
 		}
 	});
 	$effect(() => {
@@ -201,10 +204,12 @@
 		}
 	}
 	onMount(() => {
+		timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		scheduledAt = localDateTime(campaign?.scheduled_at);
 		const timer = setInterval(() => {
 			if (
 				(['campaign', 'campaigns'].includes(section) &&
-					data.campaigns.some((c) => c.status === 'sending')) ||
+					data.campaigns.some((c) => ['sending', 'scheduled'].includes(c.status))) ||
 				(section === 'settings' &&
 					settingsTab === 'knowledge' &&
 					data.documents.some((d) => ['pending', 'indexing'].includes(d.status)))
@@ -231,19 +236,20 @@
 			await fn();
 		} catch (e) {
 			problem = e instanceof Error ? e.message : 'Something went wrong.';
-			if (action === 'chat' || action === 'prepare') await invalidateAll();
+			if (action === 'chat' || action === 'review') await invalidateAll();
 		} finally {
 			busy = '';
 		}
 	}
 	async function persist() {
-		if (!campaign) return;
+		if (!campaign || !dirty) return;
 		await api('save', {
 			id: campaign.id,
 			subject,
 			body,
 			locales: audience,
-			source_locale: sourceLocale
+			source_locale: sourceLocale,
+			scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
 		});
 	}
 	async function save() {
@@ -286,25 +292,11 @@
 			await invalidateAll();
 		});
 	}
-	async function prepare() {
-		await run('prepare', async () => {
-			const id = campaign?.id;
-			if (!id) return;
+	async function review() {
+		await run('review', async () => {
+			if (!campaign) return;
 			if (dirty) await persist();
-			await api('translate', { id });
-			await invalidateAll();
-			previewLocale = audience[0];
-			showReview = true;
-		});
-	}
-	async function send() {
-		await run('send', async () => {
-			const id = campaign?.id;
-			if (!id) return;
-			const result = await api('send', { id, mode: deliveryMode });
-			showReview = false;
-			await invalidateAll();
-			notice = `${result.count} ${deliveryMode === 'local' ? 'local test deliveries' : 'emails'} queued.`;
+			await navigateAfterMutation(`/campaigns/${campaign.id}/review`);
 		});
 	}
 	function modal(node: HTMLElement, close: () => void) {
@@ -410,13 +402,7 @@
 			<div>
 				<div class="title-row">
 					<span class:green={campaign.status === 'sent'} class="badge">
-						{campaign.status === 'draft'
-							? 'Draft'
-							: campaign.status === 'sending'
-								? 'Sending'
-								: campaign.status === 'attention'
-									? 'Needs attention'
-									: 'Sent'}
+						{campaignStatus(campaign.status)}
 					</span>
 				</div>
 				<p class="campaign-cost-line">
@@ -428,12 +414,17 @@
 							: 'No recorded usage'} <span>View breakdown</span>
 					</button>
 					{#if campaign.status !== 'draft'}<span>
-							· {date(campaign.sent_at)} · {campaignDeliveries.length} recipients
+							{#if campaign.sent_at}· {date(campaign.sent_at)}{/if} · {deliverySummary.total.toLocaleString()}
+							recipients
 						</span>{/if}
 				</p>
 			</div>
 			<div class="heading-actions">
-				{#if campaign.status === 'draft'}<span class="save-status">
+				{#if campaign.status === 'draft'}<DeadlinePicker
+						bind:value={scheduledAt}
+						disabled={!!busy}
+						{timezone}
+					/><span class="save-status">
 						<Icon name={dirty ? 'edit' : 'check'} size={14} />{dirty
 							? 'Unsaved changes'
 							: 'All changes saved'}
@@ -443,10 +434,10 @@
 						{busy === 'save' ? 'Saving…' : 'Save draft'}
 					</button><button
 						class="primary"
-						onclick={prepare}
+						onclick={review}
 						disabled={!!busy || !subject.trim() || !body.trim() || !eligible.length}
 					>
-						<Icon name="send" size={16} />{busy === 'prepare' ? 'Preparing…' : 'Review & send'}
+						<Icon name="send" size={16} />{busy === 'review' ? 'Opening…' : 'Review & send'}
 					</button>{:else}<button class="secondary" onclick={() => invalidateAll()}>
 						<Icon name="chart" size={16} /> Refresh results
 					</button>{/if}
@@ -537,7 +528,7 @@
 					aria-label="AI writing assistant"
 					tabindex="-1"
 					onkeydown={(event) => {
-						if (event.key === 'Escape' && !showAudience && !showSpend && !showReview) {
+						if (event.key === 'Escape' && !showAudience && !showSpend) {
 							event.stopPropagation();
 							closeAssistant();
 						}
@@ -556,16 +547,6 @@
 							onclick={closeAssistant}
 						>
 							<Icon name="close" size={20} />
-						</button>
-					</div>
-					<div class="assistant-context">
-						<Icon name="file" size={15} /><span>Company instructions + knowledge</span><button
-							aria-label="Edit company context"
-							onclick={() => {
-								void goto('/settings/context');
-							}}
-						>
-							<Icon name="chevron" size={14} />
 						</button>
 					</div>
 					<div class="conversation" bind:this={conversation}>
@@ -655,98 +636,30 @@
 				</span>
 			</button>
 		{:else}
-			{#if campaign.status === 'sending'}
-				{@const completed = campaignDeliveries.filter((d) =>
-					['sent', 'failed', 'suppressed'].includes(d.status)
-				).length}
-				<section class="delivery-progress card" aria-label="Sending progress">
-					<div>
-						<h2>Sending in progress</h2>
-						<span>{completed} of {campaignDeliveries.length} recipients processed</span>
-					</div>
-					<progress
-						aria-label="Recipients processed"
-						value={completed}
-						max={Math.max(campaignDeliveries.length, 1)}
-					></progress>
+			{#if campaign.status === 'scheduled'}
+				<section class="schedule-summary card">
+					<h2>Scheduled for {formatCampaignDate(campaign.scheduled_at)}</h2>
 					<p>
-						Delivery activity updates automatically. You can leave this page while sending
-						continues.
+						All languages are approved. {campaign.mode === 'local'
+							? 'Delivery will be simulated; no emails will be sent.'
+							: 'Delivery will start automatically at this time.'}
 					</p>
-				</section>
-			{/if}
-			<div class="analytics">
-				<div class="metric">
-					<span>Recipients</span><strong>{campaignDeliveries.length}</strong><small>
-						Across {campaign.locales.length} languages
-					</small>
-				</div>
-				<div class="metric">
-					<span>{campaign.mode === 'local' ? 'Simulated sends' : 'Accepted by SES'}</span><strong>
-						{campaignDeliveries.filter((d) => d.status === 'sent').length}
-					</strong><small>
-						{campaignDeliveries.filter((d) => d.status === 'queued' || d.status === 'processing')
-							.length} pending
-					</small>
-				</div>
-				<div class="metric">
-					<span>Unique recorded opens</span><strong>{opened}</strong><small>
-						{campaignDeliveries.length
-							? Math.round((opened / campaignDeliveries.length) * 100)
-							: 0}% of recipients
-					</small>
-				</div>
-				<div class="metric">
-					<span>Failed / suppressed</span><strong>
-						{campaignDeliveries.filter((d) => ['failed', 'suppressed'].includes(d.status)).length}
-					</strong><small>See delivery details below</small>
-				</div>
-			</div>
-			<div class="results-grid">
-				<section class="card">
-					<div class="card-heading">
-						<h2>Delivery activity</h2>
-						<span class="badge">
-							{campaign.mode === 'local' ? 'Local test' : 'Live campaign'}
-						</span>
-					</div>
-					<p class="helper">Recorded opens measure image loads, not confirmed reads.</p>
-					<div class="table-wrap">
-						<table>
-							<thead>
-								<tr><th>Recipient</th><th>Language</th><th>Status</th><th>Opens</th></tr>
-							</thead><tbody>
-								{#each campaignDeliveries as d}<tr>
-										<td><strong>{d.name}</strong><small>{d.email}</small></td><td>
-											{language(d.locale)}
-										</td><td><span class="badge" title={d.error || ''}>{d.status}</span></td><td>
-											{d.open_count}{#if d.mode === 'local' && d.status === 'sent'}<button
-													class="text-button"
-													onclick={() => {
-														selectedDelivery = d.token;
-													}}
-												>
-													Test open
-												</button>{/if}
-										</td>
-									</tr>{/each}
-							</tbody>
-						</table>
+					<div>
+						<a class="secondary" href={`/campaigns/${campaign.id}/review`}>View approved emails</a>
+						<button
+							class="secondary"
+							disabled={!!busy}
+							onclick={() =>
+								run('cancel-schedule', async () => {
+									await api('cancel-schedule', { id: campaign.id });
+									await invalidateAll();
+								})}
+						>
+							{busy === 'cancel-schedule' ? 'Canceling…' : 'Cancel schedule & edit'}
+						</button>
 					</div>
 				</section>
-				<section class="card sent-preview">
-					<div class="card-heading">
-						<h2>The email you sent</h2>
-						<select aria-label="Preview language" bind:value={previewLocale}>
-							{#each versions as v}<option value={v.locale}>{language(v.locale)}</option>{/each}
-						</select>
-					</div>
-					<h3>{currentVersion?.subject || campaign.subject}</h3>
-					<div class="email-preview">
-						{@html renderEmail(currentVersion?.body || campaign.body)}
-					</div>
-				</section>
-			</div>
+			{:else}<CampaignStats {data} campaignId={campaign.id} />{/if}
 		{/if}
 	{:else if section === 'contacts'}
 		<section class="card contacts-card">
@@ -848,7 +761,7 @@
 			<button
 				class="secondary"
 				onclick={() => {
-					void goto('/settings/api');
+					void goto('/settings/api-keys');
 				}}
 			>
 				API settings
@@ -871,7 +784,10 @@
 				</nav>
 			{/if}
 			<section class="card settings-card">
-				{#if settingsTab === 'knowledge'}<KnowledgePanel {data} />{:else}
+				{#if settingsTab === 'knowledge'}<KnowledgePanel
+						{data}
+					/>{:else if settingsTab === 'api-keys'}<ApiKeysPanel
+					/>{:else if settingsTab === 'api-docs'}<ContactsApiDocs />{:else}
 					<form
 						onsubmit={(e) => {
 							e.preventDefault();
@@ -972,6 +888,7 @@
 								same model.
 							</div>
 							<hr />
+							<ServiceValidation service="ai" label="AI connection" {config} disabled={!!busy} />
 							<h3>Token prices · USD per 1 million tokens</h3>
 							<p class="pricing-explanation">
 								Enter the prices from your provider. These are used to estimate campaign spend.
@@ -1048,6 +965,12 @@
 								Blank URL or token uses the AI connection above. After changing the embedding model
 								or endpoint, reindex your documents. Existing drafts and sources are preserved.
 							</div>
+							<ServiceValidation
+								service="embeddings"
+								label="embeddings"
+								{config}
+								disabled={!!busy}
+							/>
 						{:else if settingsTab === 'sender'}
 							<div class="field-grid">
 								<label>Sender name<input bind:value={config.senderName} /></label><label>
@@ -1091,6 +1014,7 @@
 								SES delivery, bounce, and complaint webhooks are not connected in this first draft.
 								“Sent” means accepted by SES.
 							</div>
+							<ServiceValidation service="aws" label="AWS SES" {config} disabled={!!busy} />
 						{:else if settingsTab === 'images'}
 							<label>
 								ImageKit private API key<input
@@ -1104,50 +1028,16 @@
 								key, new uploads go to ImageKit. Existing image URLs keep working.
 							</div>
 							<div class="field-hint">PNG, JPG, WebP, or GIF · Up to 5 MB per image</div>
-						{:else}
-							<button
-								type="button"
-								class="secondary"
-								onclick={() =>
-									run('key', async () => {
-										const result = await api('api-key', {});
-										generatedKey = result.key;
-										await invalidateAll();
-									})}
+							<ServiceValidation service="imagekit" label="ImageKit" {config} disabled={!!busy} />
+						{/if}
+						<div class="settings-footer">
+							<span><Icon name="key" size={13} /> Credentials stay on the server.</span><button
+								class="primary"
+								disabled={!!busy}
 							>
-								{config.contactsApiKey ? 'Rotate API key' : 'Generate API key'}
-							</button>{#if generatedKey}<label>
-									Copy your key now<input readonly value={generatedKey} />
-								</label>
-								<div class="field-hint">
-									Rotating the key invalidates the previous key immediately.
-								</div>{/if}
-							<h3 class="api-heading">POST /api/contacts</h3>
-							<pre>Authorization: Bearer YOUR_API_KEY
-Content-Type: application/json
-
-{JSON.stringify(
-									{
-										name: 'Sofia García',
-										email: 'sofia@example.com',
-										locale: 'es',
-										unsubscribed: false
-									},
-									null,
-									2
-								)}</pre>
-							<div class="field-hint">
-								Accepts one contact or an array of up to 1,000. Existing unsubscribes are never
-								reset by an import.
-							</div>{/if}
-						{#if settingsTab !== 'api'}<div class="settings-footer">
-								<span><Icon name="key" size={13} /> Credentials stay on the server.</span><button
-									class="primary"
-									disabled={!!busy}
-								>
-									{busy === 'settings' ? 'Saving…' : 'Save changes'}
-								</button>
-							</div>{/if}
+								{busy === 'settings' ? 'Saving…' : 'Save changes'}
+							</button>
+						</div>
 					</form>{/if}
 			</section>
 		</div>
@@ -1190,86 +1080,6 @@ Content-Type: application/json
 			</form>
 		</div>
 	</div>{/if}
-{#if showReview}<div class="modal-backdrop">
-		<div
-			class="modal review-modal"
-			role="dialog"
-			tabindex="-1"
-			aria-modal="true"
-			aria-label="Review campaign"
-			use:modal={() => (showReview = false)}
-		>
-			<button class="modal-close" aria-label="Close review" onclick={() => (showReview = false)}>
-				<Icon name="close" />
-			</button><span class="eyebrow">ONE LAST LOOK</span>
-			<h2>Ready for their inbox?</h2>
-			<p>
-				{eligible.length} recipients · {audience.length} languages. Review each version before sending.
-			</p>
-			<div class="review-controls">
-				<select aria-label="Review language" bind:value={previewLocale}>
-					{#each versions as v}<option value={v.locale}>{language(v.locale)}</option>{/each}
-				</select><span>Signature included</span>
-			</div>
-			<div class="review-email">
-				<h3>{currentVersion?.subject}</h3>
-				<div class="email-preview">{@html renderEmail(currentVersion?.body || '')}</div>
-				<small>Unsubscribe link and tracking pixel are added per recipient.</small>
-			</div>
-			<label>
-				Delivery mode<select bind:value={deliveryMode}>
-					<option value="local">Local test — no real emails</option><option value="ses">
-						AWS SES — send real emails
-					</option>
-				</select>
-			</label><button class="primary full" disabled={!!busy} onclick={send}>
-				<Icon name="send" size={17} />{busy === 'send'
-					? 'Queuing…'
-					: deliveryMode === 'local'
-						? 'Run local delivery test'
-						: `Send to ${eligible.length} contacts`}
-			</button>
-		</div>
-	</div>{/if}
-{#if selectedDelivery}<div class="modal-backdrop">
-		<div
-			class="modal"
-			role="dialog"
-			tabindex="-1"
-			aria-modal="true"
-			aria-label="Test tracking"
-			use:modal={() => {
-				selectedDelivery = '';
-				void invalidateAll();
-			}}
-		>
-			<button
-				class="modal-close"
-				aria-label="Close tracking test"
-				onclick={() => {
-					selectedDelivery = '';
-					void invalidateAll();
-				}}
-			>
-				<Icon name="close" />
-			</button>
-			<h2>A recorded open.</h2>
-			<p>
-				This local test loads the delivery’s real tracking pixel. Close this window to refresh the
-				results.
-			</p>
-			<img src={`/track/${selectedDelivery}`} alt="" width="1" height="1" /><button
-				class="primary"
-				onclick={() => {
-					selectedDelivery = '';
-					void invalidateAll();
-				}}
-			>
-				Back to results
-			</button>
-		</div>
-	</div>{/if}
-
 {#if showAudience}
 	<div class="modal-backdrop">
 		<div
@@ -1419,3 +1229,22 @@ Content-Type: application/json
 		</div>
 	</div>
 {/if}
+
+<style>
+	.schedule-summary {
+		margin: 0 32px;
+		padding: 28px;
+		display: grid;
+		gap: 16px;
+	}
+	.schedule-summary div {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+	@media (max-width: 760px) {
+		.schedule-summary {
+			margin-inline: 20px;
+		}
+	}
+</style>

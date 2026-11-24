@@ -21,7 +21,7 @@
 		"worker": "bun scripts/worker.ts",
 		"test": "bun test",
 		"knowledge:worker": "bun scripts/knowledge-worker.ts",
-		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts"
+		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts && bun scripts/migrate-translation-approvals.ts && bun scripts/migrate-campaign-schedule.ts && bun scripts/migrate-api-keys.ts"
 	},
 	"devDependencies": {
 		"@inlang/paraglide-js": "^3.2.2",

@@ -8,12 +8,24 @@ export const settingsLinks = [
 	{ id: 'ai', icon: 'spark', label: 'AI engine' },
 	{ id: 'delivery', icon: 'send', label: 'Email delivery' },
 	{ id: 'images', icon: 'image', label: 'Image storage' },
-	{ id: 'api', icon: 'key', label: 'API access' }
+	{ id: 'api-keys', icon: 'key', label: 'API keys' },
+	{ id: 'api-docs', icon: 'file', label: 'API documentation' }
 ];
 
 export const campaignStatus = (status: string) =>
-	({ draft: 'Draft', sending: 'Sending', sent: 'Sent', attention: 'Needs attention' })[status] ||
-	status;
+	({
+		draft: 'Draft',
+		scheduled: 'Scheduled',
+		sending: 'Sending',
+		sent: 'Sent',
+		attention: 'Needs attention'
+	})[status] || status;
 
 export const campaignAction = (status: string) =>
-	status === 'draft' ? 'Edit draft' : status === 'sending' ? 'View progress' : 'View results';
+	status === 'draft'
+		? 'Edit draft'
+		: status === 'scheduled'
+			? 'View schedule'
+			: status === 'sending'
+				? 'View progress'
+				: 'View results';

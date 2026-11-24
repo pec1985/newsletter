@@ -1,11 +1,13 @@
+import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 import { sql } from '../src/lib/server/db';
 import { settings } from '../src/lib/server/settings';
 import { renderEmail, escapeHtml } from '../src/lib/email';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 async function tick() {
+	await releaseDueCampaigns();
 	const d = await sql.begin(async (tx) => {
 		const [row] =
-			await tx`select * from deliveries where status='queued' order by id for update skip locked limit 1`;
+			await tx`select * from deliveries where status='queued' and exists(select 1 from campaigns where campaigns.id=deliveries.campaign_id and campaigns.status='sending') order by id for update skip locked limit 1`;
 		if (row) await tx`update deliveries set status='processing' where id=${row.id}`;
 		return row;
 	});

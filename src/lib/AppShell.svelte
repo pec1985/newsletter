@@ -7,12 +7,16 @@
 		section,
 		settingsTab,
 		title,
+		campaignHref = '',
+		step = '',
 		children
 	}: {
 		companyName: string;
 		section: string;
 		settingsTab: string;
 		title: string;
+		campaignHref?: string;
+		step?: string;
 		children: Snippet;
 	} = $props();
 	let collapsed = $state(false);
@@ -110,11 +114,14 @@
 			</button>
 			<nav aria-label="Breadcrumb" class="product-breadcrumbs">
 				{#if campaignSection && section === 'campaign'}
-					<a href="/campaigns">Campaigns</a><Icon name="chevron" size={14} /><span
-						aria-current="page"
-					>
-						{title}
-					</span>
+					<a href="/campaigns">Campaigns</a><Icon name="chevron" size={14} />
+					{#if campaignHref && step}
+						<a class="campaign-crumb" href={campaignHref}>{title}</a><Icon
+							name="chevron"
+							size={14}
+						/>
+						<span aria-current="page">{step}</span>
+					{:else}<span aria-current="page">{title}</span>{/if}
 				{:else if configuration}
 					<a href="/settings">Settings</a><Icon name="chevron" size={14} /><span
 						aria-current="page"
@@ -235,6 +242,11 @@
 	.product-breadcrumbs a {
 		white-space: nowrap;
 		color: var(--accent);
+	}
+	.product-breadcrumbs .campaign-crumb {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.product-breadcrumbs a:hover {
 		text-decoration: underline;

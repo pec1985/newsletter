@@ -1,24 +1,23 @@
+import { updateContact } from '#lib/server/contacts.js';
+import {
+	validationFields,
+	validationConfig,
+	validateService,
+	type Service
+} from '#lib/server/validate-service.js';
 import { draftWithKnowledge } from '#lib/server/drafting-agent.js';
 import { json, error } from '@sveltejs/kit';
 import { sql } from '#lib/server/db.js';
 import { settings, saveSettings } from '#lib/server/settings.js';
-import { token, digest } from '#lib/server/security.js';
-import { generate } from '#lib/server/ai.js';
+import { token } from '#lib/server/security.js';
+import { prepareTranslation } from '#lib/server/translations.js';
 import type { RequestHandler } from './$types';
 const validLocale = (s: unknown): s is string =>
 	typeof s === 'string' && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(s);
 export const POST: RequestHandler = async ({ request, locals, params, url }) => {
 	const path = params.path;
-	let apiAccess = false;
-	if (path === 'contacts' && !locals.user) {
-		const config = await settings(true);
-		const bearer = request.headers.get('authorization')?.replace(/^Bearer /, '');
-		apiAccess =
-			!!bearer && !!config.contactsApiKey && digest(bearer) === digest(config.contactsApiKey);
-	}
-	if (!locals.user && !apiAccess) error(401, 'Sign in to continue.');
-	if (!apiAccess && request.headers.get('origin') !== url.origin)
-		error(403, 'Invalid request origin.');
+	if (!locals.user) error(401, 'Sign in to continue.');
+	if (request.headers.get('origin') !== url.origin) error(403, 'Invalid request origin.');
 	try {
 		if (path === 'media') {
 			const data = await request.formData();
@@ -58,55 +57,28 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			});
 		}
 		const input = await request.json();
+		if (path === 'validate-service') {
+			if (typeof input.service !== 'string' || !Object.hasOwn(validationFields, input.service))
+				error(400, 'Choose a supported service.');
+			if (!input.config || typeof input.config !== 'object' || Array.isArray(input.config))
+				error(400, 'Provide connection settings.');
+			const service = input.service as Service;
+			const config = validationConfig(service, input.config, await settings(true));
+			return json(await validateService(service, config), {
+				headers: { 'Cache-Control': 'no-store' }
+			});
+		}
 		if (path === 'settings') {
 			await saveSettings(input);
 			return json({ ok: true });
 		}
-		if (path === 'api-key') {
-			const key = token();
-			await saveSettings({ contactsApiKey: key });
-			return json({ key });
-		}
-		if (path === 'contacts') {
-			const rows = Array.isArray(input) ? input : [input];
-			if (rows.length > 1000) error(400, 'Import at most 1,000 contacts per request.');
-			for (const c of rows)
-				if (
-					typeof c.name !== 'string' ||
-					c.name.length > 200 ||
-					typeof c.email !== 'string' ||
-					c.email.length > 254 ||
-					!/^\S+@\S+\.\S+$/.test(c.email) ||
-					!validLocale(c.locale) ||
-					(c.unsubscribed !== undefined && typeof c.unsubscribed !== 'boolean')
-				)
-					error(
-						400,
-						'Every contact needs a name, valid email, locale, and optional boolean unsubscribed.'
-					);
-			const ids = await sql.begin(async (tx) => {
-				const ids = [];
-				for (const c of rows) {
-					const [row] =
-						await tx`insert into contacts (name,email,locale,unsubscribed,unsubscribed_at) values (${c.name},${c.email.toLowerCase().trim()},${c.locale},${c.unsubscribed === true},${c.unsubscribed ? new Date() : null}) on conflict(email) do update set name=excluded.name,locale=excluded.locale,unsubscribed=contacts.unsubscribed or excluded.unsubscribed,unsubscribed_at=case when excluded.unsubscribed then coalesce(contacts.unsubscribed_at,now()) else contacts.unsubscribed_at end returning id`;
-					ids.push(row.id);
-				}
-				return ids;
-			});
-			return json({ ids });
-		}
+		if (path === 'api-key') error(410, 'Create named keys at /api/api-keys.');
 		if (path === 'edit-contact') {
-			if (
-				typeof input.name !== 'string' ||
-				input.name.length > 200 ||
-				typeof input.email !== 'string' ||
-				!/^\S+@\S+\.\S+$/.test(input.email) ||
-				!validLocale(input.locale)
-			)
-				error(400, 'Enter a valid name, email and locale.');
-			const [contact] =
-				await sql`update contacts set name=${input.name},email=${input.email.toLowerCase().trim()},locale=${input.locale} where id=${input.id} returning id`;
-			if (!contact) error(404, 'Contact not found.');
+			await updateContact(String(input.id || ''), {
+				name: input.name,
+				email: input.email,
+				locale: input.locale
+			});
 			return json({ ok: true });
 		}
 		if (path === 'unsubscribe-contact') {
@@ -133,6 +105,16 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 		}
 		const [campaign] = await sql`select * from campaigns where id=${input.id}`;
 		if (!campaign) error(404, 'Campaign not found.');
+		if (path === 'cancel-schedule') {
+			await sql.begin(async (tx) => {
+				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
+				if (locked.status !== 'scheduled')
+					error(409, 'This campaign is no longer scheduled. Delivery may have started.');
+				await tx`delete from deliveries where campaign_id=${input.id} and status='queued'`;
+				await tx`update campaigns set status='draft',updated_at=now() where id=${input.id}`;
+			});
+			return json({ ok: true });
+		}
 		if (campaign.status !== 'draft') error(400, 'Sent campaigns are read-only.');
 		if (path === 'save') {
 			if (
@@ -145,10 +127,28 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			)
 				error(400, 'Provide a subject, body, source language and audience locales.');
 			await sql.begin(async (tx) => {
-				const [locked] = await tx`select status from campaigns where id=${input.id} for update`;
+				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
+				const parseDate = (value: unknown) => {
+					if (value === null || value === '') return null;
+					if (
+						typeof value !== 'string' ||
+						!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
+						!Number.isFinite(Date.parse(value))
+					)
+						error(400, 'Choose a valid date and time.');
+					return new Date(value).toISOString();
+				};
+				const scheduledAt =
+					input.scheduled_at === undefined ? locked.scheduled_at : parseDate(input.scheduled_at);
+				await tx`update campaigns set scheduled_at=${scheduledAt} where id=${input.id}`;
 				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},locales=${input.locales},source_locale=${input.source_locale},updated_at=now() where id=${input.id} and status='draft'`;
-				await tx`delete from versions where campaign_id=${input.id}`;
+				if (
+					locked.subject !== input.subject.trim().slice(0, 500) ||
+					locked.body !== input.body ||
+					locked.source_locale !== input.source_locale
+				)
+					await tx`delete from versions where campaign_id=${input.id}`;
 			});
 			return json({ ok: true });
 		}
@@ -170,58 +170,65 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 					'I’ve updated your draft. Take a look and tell me what you’d like to change.'
 			});
 			await sql.begin(async (tx) => {
-				const [locked] = await tx`select status from campaigns where id=${input.id} for update`;
+				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
 				await tx`update campaigns set title=${result.subject.trim() || 'Untitled campaign'},subject=${result.subject},body=${result.body},messages=${sql.json(messages)},updated_at=now() where id=${input.id} and status='draft'`;
-				await tx`delete from versions where campaign_id=${input.id}`;
+				if (locked.subject !== result.subject || locked.body !== result.body)
+					await tx`delete from versions where campaign_id=${input.id}`;
+			});
+			return json({ ok: true });
+		}
+		if (path === 'edit-version') {
+			if (
+				typeof input.version_id !== 'string' ||
+				typeof input.subject !== 'string' ||
+				!input.subject.trim() ||
+				input.subject.length > 500 ||
+				typeof input.body !== 'string' ||
+				!input.body.trim() ||
+				input.body.length > 100000
+			)
+				error(
+					400,
+					'Provide a subject (up to 500 characters) and email body (up to 100,000 characters).'
+				);
+			await sql.begin(async (tx) => {
+				const [locked] = await tx`select status from campaigns where id=${input.id} for update`;
+				if (!locked || locked.status !== 'draft') error(409, 'This campaign is no longer a draft.');
+				const [version] =
+					await tx`select * from versions where id=${input.version_id} and campaign_id=${input.id} and status='ready'`;
+				if (!version)
+					error(409, 'This preview has changed. Cancel editing and review the latest version.');
+				if (version.subject !== input.subject.trim() || version.body !== input.body)
+					// Rotate the ID so an older preview cannot approve or overwrite this edit.
+					await tx`update versions set id=gen_random_uuid(),subject=${input.subject.trim()},body=${input.body},approved_at=null,approved_by=null where id=${version.id}`;
+			});
+			return json({ ok: true });
+		}
+		if (path === 'approve-version') {
+			if (typeof input.version_id !== 'string' || typeof input.approved !== 'boolean')
+				error(400, 'Choose a preview and its approval status.');
+			await sql.begin(async (tx) => {
+				const [locked] = await tx`select status from campaigns where id=${input.id} for update`;
+				if (!locked || locked.status !== 'draft') error(409, 'This campaign is no longer a draft.');
+				const [version] =
+					await tx`update versions set approved_at=${input.approved ? new Date() : null},approved_by=${input.approved ? locals.user!.id : null} where id=${input.version_id} and campaign_id=${input.id} and status='ready' returning id`;
+				if (!version) error(409, 'This preview has changed. Reopen the review before approving.');
 			});
 			return json({ ok: true });
 		}
 		if (path === 'translate') {
-			const config = await settings(true);
-			const versions: { locale: string; subject: string; body: string }[] = [];
-			for (const locale of campaign.locales) {
-				let subject = campaign.subject,
-					body = campaign.body;
-				if (locale !== campaign.source_locale) {
-					const result = await generate(
-						[
-							{
-								role: 'system',
-								content:
-									'Translate this email faithfully. Preserve every URL and Markdown image. Return JSON with subject and body. Do not add content.'
-							},
-							{ role: 'user', content: JSON.stringify({ targetLocale: locale, subject, body }) }
-						],
-						{ campaignId: input.id, task: 'translate', locale }
-					);
-					subject = result.subject;
-					body = result.body;
-				}
-				body +=
-					'\n\n' +
-					(locale.startsWith('es') && config.signatureEs
-						? config.signatureEs
-						: config.signature || ''
-					).replaceAll('\\n', '\n');
-				versions.push({ locale, subject, body });
-			}
-			await sql.begin(async (tx) => {
-				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
-				if (
-					locked.status !== 'draft' ||
-					locked.updated_at.getTime() !== campaign.updated_at.getTime()
-				)
-					error(409, 'The draft changed. Prepare the previews again.');
-				await tx`delete from versions where campaign_id=${input.id}`;
-				for (const v of versions)
-					await tx`insert into versions (campaign_id,locale,subject,body) values (${input.id},${v.locale},${v.subject},${v.body})`;
-			});
+			if (input.locale !== undefined && !validLocale(input.locale))
+				error(400, 'Choose a valid locale.');
+			const locales = input.locale ? [input.locale] : campaign.locales;
+			for (const locale of locales)
+				await prepareTranslation(input.id, locale, input.retry === true);
 			return json({ ok: true });
 		}
 		if (path === 'send') {
 			const config = await settings(true);
-			const mode = input.mode === 'ses' ? 'ses' : 'local';
+			// Delivery mode is server-controlled; development must never queue real email.
+			const mode = import.meta.env.DEV ? 'local' : 'ses';
 			if (
 				mode === 'ses' &&
 				(!process.env.APP_ORIGIN?.startsWith('https://') ||
@@ -233,13 +240,22 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			const count = await sql.begin(async (tx) => {
 				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
+				if (locked.scheduled_at && new Date(locked.scheduled_at).getTime() <= Date.now())
+					error(
+						400,
+						'The scheduled send time has passed. Choose a future time, or clear it to send now.'
+					);
 				const versions = await tx`select * from versions where campaign_id=${input.id}`;
 				if (
 					!locked.subject.trim() ||
 					!locked.body.trim() ||
-					locked.locales.some((l: string) => !versions.some((v) => v.locale === l))
+					!locked.locales.length ||
+					locked.locales.some(
+						(l: string) =>
+							!versions.some((v) => v.locale === l && v.status === 'ready' && v.approved_at)
+					)
 				)
-					error(400, 'Prepare and review every language preview first.');
+					error(400, 'Review and approve every language preview before sending.');
 				const contacts =
 					await tx`select * from contacts where not unsubscribed and not suppressed and locale=any(${locked.locales})`;
 				if (!contacts.length) error(400, 'There are no subscribed contacts in this audience.');
@@ -247,7 +263,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 					const v = versions.find((v) => v.locale === c.locale)!;
 					await tx`insert into deliveries (campaign_id,contact_id,email,name,locale,subject,body,token,mode) values (${input.id},${c.id},${c.email},${c.name},${c.locale},${v.subject},${v.body},${token()},${mode})`;
 				}
-				await tx`update campaigns set status='sending',mode=${mode},updated_at=now() where id=${input.id}`;
+				await tx`update campaigns set status=${locked.scheduled_at ? 'scheduled' : 'sending'},mode=${mode},updated_at=now() where id=${input.id}`;
 				return contacts.length;
 			});
 			return json({ count });

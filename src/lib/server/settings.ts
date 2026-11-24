@@ -2,16 +2,11 @@ import { priceKeys, parsePrice } from '../ai-cost';
 import { defaultAiBaseUrl, normalizeAiBaseUrl } from './ai-config';
 import { sql } from './db';
 import { encrypt, decrypt } from './security';
-export const secretKeys = [
-	'awsSecretKey',
-	'aiKey',
-	'embeddingKey',
-	'imagekitKey',
-	'contactsApiKey'
-];
+export const secretKeys = ['awsSecretKey', 'aiKey', 'embeddingKey', 'imagekitKey'];
 export async function settings(reveal = false): Promise<Record<string, string>> {
 	const [row] = await sql`select value from settings where id = 1`;
 	const values: Record<string, string> = row?.value || {};
+	delete values.contactsApiKey;
 	for (const key of secretKeys) {
 		if (values[key]) values[key] = reveal ? decrypt(values[key]) : '••••••••';
 	}

@@ -1,3 +1,6 @@
+import { migrateApiKeys } from '../src/lib/server/api-key-schema';
+import { migrateCampaignSchedule } from '../src/lib/server/campaign-schedule-schema';
+import { migrateTranslationApprovals } from '../src/lib/server/translation-approval-schema';
 import { migrateKnowledge } from '../src/lib/server/knowledge-schema';
 import { migrateAiUsage } from '../src/lib/server/ai-usage-schema';
 import { sql } from '../src/lib/server/db';
@@ -15,6 +18,9 @@ create table if not exists media (id uuid primary key default gen_random_uuid(),
 create index if not exists deliveries_campaign_idx on deliveries(campaign_id);
 create index if not exists events_delivery_idx on events(delivery_id);
 `.simple();
+await migrateTranslationApprovals();
+await migrateCampaignSchedule();
+await migrateApiKeys();
 await migrateAiUsage();
 await migrateKnowledge();
 await sql`insert into users (username,password_hash) values ('admin',${hashPassword('admin')}) on conflict(username) do nothing`;

@@ -91,6 +91,8 @@ try {
 	const image = await fetch(media.url);
 	assert.equal(image.status, 200);
 	assert.equal(image.headers.get('Content-Type'), 'image/png');
+	const [version] = await sql`select id from versions where campaign_id=${id}`;
+	await post('approve-version', { id, version_id: version.id, approved: true });
 	const queued = await post('send', { id, mode: 'local' });
 	assert.equal(queued.count, 1);
 	const duplicate = await fetch(origin + '/api/send', {

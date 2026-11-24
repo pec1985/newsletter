@@ -31,7 +31,8 @@ try {
 		['/settings/sender', 'Sender email'],
 		['/settings/delivery', 'AWS region'],
 		['/settings/images', 'ImageKit private API key'],
-		['/settings/api', 'POST /api/contacts'],
+		['/settings/api-keys', 'Create API key'],
+		['/settings/api-docs', 'Copy for LLM'],
 		['/campaigns/' + campaign.id, 'Direct-link body']
 	]) {
 		const response = await fetch(origin + path, {
@@ -58,10 +59,11 @@ try {
 		});
 		assert.equal(response.status, 200);
 		const html = await response.text();
-		assert.ok(html.includes('Delivery activity'), status + ' opens results');
+		assert.ok(html.includes('Campaign statistics'), status + ' opens results');
 		assert.ok(html.includes('Read-only result preview'));
 		assert.ok(!html.includes('aria-label="Email body"'), status + ' cannot edit the sent email');
-		if (status === 'sending') assert.ok(html.includes('Sending in progress'));
+		assert.ok(html.includes('Campaign report views'));
+		assert.ok(html.includes('Delivery by language'));
 		const index = await (
 			await fetch(origin + '/campaigns', { headers: { Cookie: cookie } })
 		).text();
@@ -78,6 +80,12 @@ try {
 		});
 		assert.equal(response.status, 404);
 	}
+	const legacyApi = await fetch(origin + '/settings/api', {
+		headers: { Cookie: cookie },
+		redirect: 'manual'
+	});
+	assert.equal(legacyApi.status, 303);
+	assert.equal(legacyApi.headers.get('location'), '/settings/api-keys');
 	const root = await fetch(origin + '/', { headers: { Cookie: cookie }, redirect: 'manual' });
 	assert.equal(root.status, 303);
 	assert.equal(root.headers.get('location'), '/campaigns');
