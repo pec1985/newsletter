@@ -1,3 +1,4 @@
+import { workerLifecycle } from '../src/lib/server/worker-lifecycle';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 import { sql } from '../src/lib/server/db';
 import { settings } from '../src/lib/server/settings';
@@ -57,11 +58,15 @@ async function tick() {
 	return true;
 }
 console.log('Newsletter worker running. Local deliveries do not send email.');
-while (true) {
+const lifecycle = workerLifecycle();
+while (!lifecycle.stopping) {
 	try {
-		if (!(await tick())) await Bun.sleep(1500);
+		if (!(await tick())) await lifecycle.sleep(1500);
 	} catch (e) {
 		console.error(e);
-		await Bun.sleep(5000);
+		await lifecycle.sleep(5000);
 	}
 }
+
+await sql.end({ timeout: 5 });
+lifecycle.close();

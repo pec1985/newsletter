@@ -5,6 +5,15 @@ import { migrateKnowledge } from '../src/lib/server/knowledge-schema';
 import { migrateAiUsage } from '../src/lib/server/ai-usage-schema';
 import { sql } from '../src/lib/server/db';
 import { hashPassword } from '../src/lib/server/security';
+const production = process.argv.includes('--production');
+if (process.env.NODE_ENV === 'production' && !production) {
+	throw new Error('Use db:init in production; db:setup creates demo data.');
+}
+const username = production ? process.env.ADMIN_USERNAME : 'admin';
+const password = production ? process.env.ADMIN_PASSWORD : 'admin';
+if (!username || !password || (production && password.length < 16)) {
+	throw new Error('Set ADMIN_USERNAME and ADMIN_PASSWORD (at least 16 characters).');
+}
 await sql`
 create table if not exists users (id uuid primary key default gen_random_uuid(), username text unique not null, password_hash text not null);
 create table if not exists sessions (token_hash text primary key, user_id uuid references users(id) on delete cascade, expires_at timestamptz not null);
@@ -23,7 +32,13 @@ await migrateCampaignSchedule();
 await migrateApiKeys();
 await migrateAiUsage();
 await migrateKnowledge();
-await sql`insert into users (username,password_hash) values ('admin',${hashPassword('admin')}) on conflict(username) do nothing`;
+await sql`insert into users (username,password_hash) values (${username},${hashPassword(password)}) on conflict(username) do nothing`;
+if (production) {
+	await sql`insert into settings (id,value) values (1,'{}') on conflict(id) do nothing`;
+	console.log('Production database ready. Existing users and settings preserved.');
+	await sql.end();
+	process.exit(0);
+}
 await sql`insert into settings (id,value) values (1,${sql.json({ companyName: 'Your company', companyContext: 'We build thoughtful software that makes everyday work simpler. Write like a person: warm, clear, and useful. Avoid hype.', senderName: 'Alex', senderEmail: 'alex@example.com', signature: 'Alex\nFounder, Your company', signatureEs: 'Alex\nFundador, Your company', awsRegion: 'eu-west-1', aiModel: 'gpt-4.1-mini' })}) on conflict(id) do nothing`;
 const [count] = await sql`select count(*)::int as n from contacts`;
 if (!count.n) {

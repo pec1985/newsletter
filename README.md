@@ -1,5 +1,7 @@
 # Postscript
 
+For Docker builds and GHCR publishing, see [Container deployment](deploy/README.md).
+
 A local-first draft of an AI-assisted newsletter workspace, built with SvelteKit, TypeScript, Tailwind, Bun, and Postgres.
 
 ## Local development
@@ -58,7 +60,7 @@ The smoke test requires the dev server, database, worker, and local test account
 
 ## First-draft boundaries
 
-This is a single-workspace development app, not a production deployment. Before production, add SES event ingestion for delivery/bounces/complaints, production login hardening, sending rate limits, pagination for large contact lists, and recovery controls for interrupted jobs. A worker crash after submission can leave a delivery in `processing`; jobs are deliberately not automatically replayed because SES does not guarantee idempotent sends. Failed deliveries are visible but do not yet have a retry UI.
+This is a single-workspace MVP with container deployment support. Before broader production use, add SES event ingestion for delivery/bounces/complaints, production login hardening, sending rate limits, pagination for large contact lists, and recovery controls for interrupted jobs. A worker crash after submission can leave a delivery in `processing`; jobs are deliberately not automatically replayed because SES does not guarantee idempotent sends. Failed deliveries are visible but do not yet have a retry UI.
 
 Recorded opens are image requests, not proof of a human read. Email clients may block or proxy images. Unsubscribe links require an explicit confirmation, so link scanners do not unsubscribe contacts on GET.
 

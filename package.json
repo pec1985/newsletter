@@ -21,11 +21,13 @@
 		"worker": "bun scripts/worker.ts",
 		"test": "bun test",
 		"knowledge:worker": "bun scripts/knowledge-worker.ts",
-		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts && bun scripts/migrate-translation-approvals.ts && bun scripts/migrate-campaign-schedule.ts && bun scripts/migrate-api-keys.ts"
+		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts && bun scripts/migrate-translation-approvals.ts && bun scripts/migrate-campaign-schedule.ts && bun scripts/migrate-api-keys.ts",
+		"start": "node build",
+		"db:init": "bun scripts/setup.ts --production"
 	},
 	"devDependencies": {
 		"@inlang/paraglide-js": "^3.2.2",
-		"@sveltejs/adapter-auto": "^8.0.1",
+		"@sveltejs/adapter-node": "^6.0.5",
 		"@sveltejs/kit": "^3.2.0",
 		"@sveltejs/vite-devtools-svelte": "^0.11.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
