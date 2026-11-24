@@ -472,12 +472,12 @@
 					</div>
 					{#if editorTab === 'write'}<div class="format-toolbar">
 							<button aria-label="Insert bold text" onclick={() => insert('**your text**')}>
-								<strong>B</strong>
+								<Icon name="bold" size={16} />
 							</button><button
 								aria-label="Insert italic text"
 								onclick={() => insert('*your text*')}
 							>
-								<em>I</em>
+								<Icon name="italic" size={16} />
 							</button><span class="toolbar-divider"></span><button
 								aria-label="Insert a link"
 								title="Insert a link"
@@ -671,16 +671,20 @@
 						bind:value={contactSearch}
 					/>
 				</div>
-				<select aria-label="Filter contacts by email permission" bind:value={contactPermission}>
-					<option value="all">All permissions</option><option value="allowed">
-						Can receive email
-					</option><option value="blocked">Cannot receive email</option>
-				</select>
-				<select aria-label="Filter contacts by locale" bind:value={contactLocale}>
-					<option value="all">All languages</option>{#each locales as l}<option value={l}>
-							{language(l)}
-						</option>{/each}
-				</select><button
+				<span class="select-control">
+					<select aria-label="Filter contacts by email permission" bind:value={contactPermission}>
+						<option value="all">All permissions</option><option value="allowed">
+							Can receive email
+						</option><option value="blocked">Cannot receive email</option>
+					</select><Icon name="down" size={14} />
+				</span>
+				<span class="select-control">
+					<select aria-label="Filter contacts by locale" bind:value={contactLocale}>
+						<option value="all">All languages</option>{#each locales as l}<option value={l}>
+								{language(l)}
+							</option>{/each}
+					</select><Icon name="down" size={14} />
+				</span><button
 					class="primary"
 					onclick={() => {
 						editingContactId = '';

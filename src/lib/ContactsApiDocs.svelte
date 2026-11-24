@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from './Icon.svelte';
 	import { endpoints, contactsApiMarkdown } from '#lib/contacts-api-docs.js';
 	let copied = $state(false);
 	let copyError = $state('');
@@ -45,7 +46,7 @@
 					<span class="endpoint-label">
 						<code>{endpoint.path}</code><span>{endpoint.title}</span>
 					</span>
-					<span class="chevron" aria-hidden="true">›</span>
+					<span class="chevron" aria-hidden="true"><Icon name="chevron" size={16} /></span>
 				</summary>
 				<div class="endpoint-content">
 					<p>{endpoint.note}</p>

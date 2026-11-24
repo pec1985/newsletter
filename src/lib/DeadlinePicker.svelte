@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import Icon from './Icon.svelte';
 	import { localDateTime } from '#lib/campaign-dates.js';
 	let {
 		value = $bindable(''),
@@ -75,17 +76,7 @@
 		aria-haspopup="dialog"
 		aria-label={value ? `Deadline: ${label}` : 'Deadline'}
 	>
-		<svg
-			width="16"
-			height="16"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.7"
-			aria-hidden="true"
-		>
-			<rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
-		</svg>
+		<Icon name="calendar" size={16} />
 		{label}
 	</button>
 	{#if open}
@@ -101,7 +92,7 @@
 					aria-label="Previous month"
 					onclick={() => (month = new Date(month.getFullYear(), month.getMonth() - 1, 1))}
 				>
-					‹
+					<Icon name="left" size={16} />
 				</button>
 				<strong aria-live="polite">{monthLabel}</strong>
 				<button
@@ -109,7 +100,7 @@
 					aria-label="Next month"
 					onclick={() => (month = new Date(month.getFullYear(), month.getMonth() + 1, 1))}
 				>
-					›
+					<Icon name="chevron" size={16} />
 				</button>
 			</div>
 			<div class="calendar-grid">
@@ -190,6 +181,8 @@
 		font-size: 14px;
 	}
 	.calendar-header button {
+		display: grid;
+		place-items: center;
 		width: 32px;
 		height: 32px;
 		border-radius: 6px;

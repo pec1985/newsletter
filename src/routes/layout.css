@@ -101,9 +101,7 @@ select {
 	width: auto;
 	padding-right: 34px;
 	font-size: 13px;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23655b76' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-	background-repeat: no-repeat;
-	background-position: right 12px center;
+	background-image: none;
 	appearance: none;
 }
 textarea {
@@ -842,6 +840,9 @@ tbody tr:last-child td {
 	border-bottom: 0;
 }
 .text-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
 	color: var(--accent);
 	font-size: 12px;
 	padding: 5px 7px;
@@ -2085,4 +2086,17 @@ summary:focus-visible {
 	.floating-assistant .chat-input textarea {
 		height: 54px;
 	}
+}
+
+/* Keep native select behavior with a Flowbite icon overlay. */
+.select-control {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+.select-control > svg {
+	position: absolute;
+	right: 12px;
+	pointer-events: none;
+	color: var(--text-secondary);
 }

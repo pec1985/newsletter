@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from './Icon.svelte';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import { summarizeDeliveries, type DeliveryRow } from '#lib/delivery-stats.js';
@@ -169,7 +170,9 @@
 		<section class="report-card">
 			<div class="section-heading">
 				<h2>Delivery by language</h2>
-				<button class="text-button" onclick={() => openTab('recipients')}>View recipients →</button>
+				<button class="text-button" onclick={() => openTab('recipients')}>
+					View recipients <Icon name="right" size={14} />
+				</button>
 			</div>
 			<div class="table-wrap">
 				<table>
@@ -223,20 +226,30 @@
 					bind:value={search}
 					maxlength="200"
 				/>
-				<select aria-label="Filter delivery status" bind:value={filter} onchange={applyFilters}>
-					<option value="all">All statuses</option><option value="sent">
-						{campaign.mode === 'local' ? 'Simulated' : 'Accepted by SES'}
-					</option><option value="queued">Queued</option><option value="processing">
-						Processing
-					</option><option value="opened">Opened</option><option value="failed">
-						Failed
-					</option><option value="suppressed">Suppressed</option>
-				</select>
-				<select aria-label="Filter recipient language" bind:value={locale} onchange={applyFilters}>
-					<option value="">All languages</option>{#each languages as row}<option value={row.locale}>
-							{language(row.locale)}
-						</option>{/each}
-				</select>
+				<span class="select-control">
+					<select aria-label="Filter delivery status" bind:value={filter} onchange={applyFilters}>
+						<option value="all">All statuses</option><option value="sent">
+							{campaign.mode === 'local' ? 'Simulated' : 'Accepted by SES'}
+						</option><option value="queued">Queued</option><option value="processing">
+							Processing
+						</option><option value="opened">Opened</option><option value="failed">
+							Failed
+						</option><option value="suppressed">Suppressed</option>
+					</select><Icon name="down" size={14} />
+				</span>
+				<span class="select-control">
+					<select
+						aria-label="Filter recipient language"
+						bind:value={locale}
+						onchange={applyFilters}
+					>
+						<option value="">All languages</option>{#each languages as row}<option
+								value={row.locale}
+							>
+								{language(row.locale)}
+							</option>{/each}
+					</select><Icon name="down" size={14} />
+				</span>
 				<button class="secondary" type="submit">Search</button>
 			</form>
 			{#if problem}<div class="recipient-error" role="alert">
@@ -296,9 +309,11 @@
 		<section class="report-card email-report">
 			<div class="section-heading">
 				<h2>Campaign email</h2>
-				<select aria-label="Preview language" bind:value={previewLocale}>
-					{#each versions as row}<option value={row.locale}>{language(row.locale)}</option>{/each}
-				</select>
+				<span class="select-control">
+					<select aria-label="Preview language" bind:value={previewLocale}>
+						{#each versions as row}<option value={row.locale}>{language(row.locale)}</option>{/each}
+					</select><Icon name="down" size={14} />
+				</span>
 			</div>
 			<h3>{version?.subject || campaign.subject}</h3>
 			<div class="email-preview">{@html renderEmail(version?.body || campaign.body)}</div>
