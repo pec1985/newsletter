@@ -28,7 +28,7 @@ Terminate HTTPS at your reverse proxy and preserve the public Host header. Svelt
 
 Use a fresh production database. Development `db:setup` retains **admin/admin** and demo data; never expose the development database as production.
 
-Run `bun run db:init` once using the published image and the production database environment. Supply `ADMIN_USERNAME` and `ADMIN_PASSWORD` (at least 16 characters) only to this initialization process. It creates the schema and applies all migrations without seeding contacts or campaigns, and does not reset an existing user's password. The database role needs permission to create the vector extension. `db:setup` refuses to run when `NODE_ENV=production`.
+Run `bun run db:init` once using the published image and the production database environment. Supply `ADMIN_USERNAME` and `ADMIN_PASSWORD` (at least 8 characters) only to this initialization process. It creates the schema and applies all migrations without seeding contacts or campaigns, and does not reset an existing user's password. The database role needs permission to create the vector extension. `db:setup` refuses to run when `NODE_ENV=production`.
 
 For later releases, back up the database, stop application processes, and run `bun run db:migrate` from the new image. Restart the web process and both workers only after successful migration. Do not run schema migrations on every container restart.
 
