@@ -128,21 +128,21 @@ Settings includes **Validate AI connection**, **Validate embeddings**, **Validat
 
 Create a named key in **Settings → API keys** and send `Authorization: Bearer YOUR_API_KEY` on every request. All responses are private (`Cache-Control: no-store`). Browser sessions also work, with a same-origin requirement for writes. API keys only authorize the contacts endpoints, not settings or campaigns.
 
-| Method | Endpoint | Behavior |
-| --- | --- | --- |
-| POST | `/api/contacts` | Create or update one contact, or a JSON array of up to 20,000 contacts |
-| GET | `/api/contacts?email=alex%40example.com` | Exact lookup by normalized email; returns `{ "contact": ... }`, or 404 |
-| GET | `/api/contacts?limit=100&cursor=CONTACT_ID` | List contacts; returns `contacts` and `next_cursor` (null at the end). Default 100, maximum 1,000 per page |
-| GET | `/api/contacts/CONTACT_ID` | Get one contact by UUID |
-| PATCH | `/api/contacts/CONTACT_ID` | Update only the provided fields |
-| DELETE | `/api/contacts/CONTACT_ID` | Delete a contact; returns 204 with no body |
+| Method | Endpoint                                    | Behavior                                                                                                   |
+| ------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/contacts`                             | Create or update one contact, or a JSON array of up to 20,000 contacts                                     |
+| GET    | `/api/contacts?email=alex%40example.com`    | Exact lookup by normalized email; returns `{ "contact": ... }`, or 404                                     |
+| GET    | `/api/contacts?limit=100&cursor=CONTACT_ID` | List contacts; returns `contacts` and `next_cursor` (null at the end). Default 100, maximum 1,000 per page |
+| GET    | `/api/contacts/CONTACT_ID`                  | Get one contact by UUID                                                                                    |
+| PATCH  | `/api/contacts/CONTACT_ID`                  | Update only the provided fields                                                                            |
+| DELETE | `/api/contacts/CONTACT_ID`                  | Delete a contact; returns 204 with no body                                                                 |
 
 **Create / bulk upsert** — `Content-Type: application/json`:
 
 ```json
 [
-  { "name": "Alex", "email": "alex@example.com", "locale": "en", "subscribed": true },
-  { "name": "María", "email": "maria@example.com", "locale": "es", "subscribed": false }
+	{ "name": "Alex", "email": "alex@example.com", "locale": "en", "subscribed": true },
+	{ "name": "María", "email": "maria@example.com", "locale": "es", "subscribed": false }
 ]
 ```
 
@@ -155,17 +155,16 @@ Imports are synchronous, performed in batches of 1,000 inside one transaction. T
 **Lookup / permission check:**
 
 ```javascript
-const response = await fetch(
-  `${baseUrl}/api/contacts?email=${encodeURIComponent(email)}`,
-  { headers: { Authorization: `Bearer ${apiKey}` } }
-);
+const response = await fetch(`${baseUrl}/api/contacts?email=${encodeURIComponent(email)}`, {
+	headers: { Authorization: `Bearer ${apiKey}` }
+});
 if (response.status === 404) {
-  // Contact is unknown; do not treat this as permission to email.
+	// Contact is unknown; do not treat this as permission to email.
 } else if (!response.ok) {
-  throw new Error(`Contact lookup failed: ${response.status}`);
+	throw new Error(`Contact lookup failed: ${response.status}`);
 } else {
-  const { contact } = await response.json();
-  const canEmail = contact.can_email;
+	const { contact } = await response.json();
+	const canEmail = contact.can_email;
 }
 ```
 
