@@ -1,0 +1,21 @@
+services:
+  db:
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    image: newsletter-postgres:17-vector
+    ports:
+      - '127.0.0.1:55450:5432'
+    environment:
+      POSTGRES_DB: newsletter
+      POSTGRES_USER: newsletter
+      POSTGRES_PASSWORD: newsletter_local
+    volumes:
+      - newsletter_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U newsletter']
+      interval: 3s
+      timeout: 3s
+      retries: 10
+volumes:
+  newsletter_data:
