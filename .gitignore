@@ -39,3 +39,7 @@ project.inlang/cache/
 
 # Local database backups
 .local-backups/
+
+# Kubernetes environment secrets (including the alternate spelling)
+/k8s/secrets.yaml
+/k8s/screts.yaml
