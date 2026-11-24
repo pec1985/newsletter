@@ -1,6 +1,7 @@
 <script lang="ts">
 	let { name = 'mail', size = 20 }: { name?: string; size?: number } = $props();
 	const paths: Record<string, string> = {
+		sidebar: 'M3 4h18v16H3zM9 4v16',
 		mail: 'M4 5h16v14H4z M4 6l8 6 8-6',
 		plus: 'M12 5v14M5 12h14',
 		chevron: 'M9 5l7 7-7 7',

@@ -86,11 +86,6 @@
 	}
 </script>
 
-<h2>Knowledge base</h2>
-<p>
-	Upload long documentation here. The assistant searches relevant sections while drafting; your
-	company instructions are always included.
-</p>
 {#if problem}<div class="error" role="alert">{problem}</div>{/if}
 {#if notice}<div class="knowledge-notice" role="status">{notice}</div>{/if}
 <div class="knowledge-upload">

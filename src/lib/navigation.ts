@@ -1,0 +1,19 @@
+export const workspaceLinks = [
+	{ id: 'context', icon: 'edit', label: 'Writing instructions' },
+	{ id: 'knowledge', icon: 'file', label: 'Knowledge base' }
+];
+
+export const settingsLinks = [
+	{ id: 'sender', icon: 'mail', label: 'Sender & signature' },
+	{ id: 'ai', icon: 'spark', label: 'AI engine' },
+	{ id: 'delivery', icon: 'send', label: 'Email delivery' },
+	{ id: 'images', icon: 'image', label: 'Image storage' },
+	{ id: 'api', icon: 'key', label: 'API access' }
+];
+
+export const campaignStatus = (status: string) =>
+	({ draft: 'Draft', sending: 'Sending', sent: 'Sent', attention: 'Needs attention' })[status] ||
+	status;
+
+export const campaignAction = (status: string) =>
+	status === 'draft' ? 'Edit draft' : status === 'sending' ? 'View progress' : 'View results';
