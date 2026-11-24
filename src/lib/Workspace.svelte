@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import { onMount, untrack, tick } from 'svelte';
 	import type { LayoutData } from '../routes/(workspace)/$types';
@@ -788,7 +789,51 @@
 				</nav>
 			{/if}
 			<section class="card settings-card">
-				{#if settingsTab === 'knowledge'}<KnowledgePanel
+				{#if settingsTab === 'account'}
+					<form method="POST" action="?/credentials">
+						<label>
+							Username<input
+								name="username"
+								value={page.form?.username ?? data.user.username}
+								autocomplete="username"
+								required
+							/>
+						</label>
+						<label>
+							Current password<input
+								type="password"
+								name="currentPassword"
+								autocomplete="current-password"
+								required
+								maxlength="1024"
+							/>
+						</label>
+						<label>
+							New password (optional)<input
+								type="password"
+								name="newPassword"
+								autocomplete="new-password"
+								minlength="8"
+								maxlength="1024"
+								aria-describedby="password-hint"
+							/>
+						</label>
+						<p id="password-hint" class="field-hint">
+							Use at least 8 characters. Leave blank to keep your current password.
+						</p>
+						<label>
+							Confirm new password<input
+								type="password"
+								name="confirmation"
+								autocomplete="new-password"
+								maxlength="1024"
+							/>
+						</label>
+						{#if page.form?.error}<p role="alert">{page.form.error}</p>{/if}
+						{#if page.form?.saved}<p role="status">Account updated.</p>{/if}
+						<button class="primary" type="submit">Save account changes</button>
+					</form>
+				{:else if settingsTab === 'knowledge'}<KnowledgePanel
 						{data}
 					/>{:else if settingsTab === 'api-keys'}<ApiKeysPanel
 					/>{:else if settingsTab === 'api-docs'}<ContactsApiDocs />{:else}

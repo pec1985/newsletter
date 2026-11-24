@@ -25,11 +25,16 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const username = String(form.get('username') || '');
 		const password = String(form.get('password') || '');
-		const [user] = await sql`select * from users where username=${username}`;
-		if (!user || password.length > 1024 || !verifyPassword(password, user.password_hash))
-			return fail(400, { error: 'That username or password isn’t right.' });
 		const value = token();
-		await sql`insert into sessions (token_hash,user_id,expires_at) values (${digest(value)},${user.id},now()+interval '7 days')`;
+		const authenticated = await sql.begin(async (tx) => {
+			const [user] =
+				await tx`select id,password_hash from users where username=${username} for share`;
+			if (!user || password.length > 1024 || !verifyPassword(password, user.password_hash))
+				return false;
+			await tx`insert into sessions (token_hash,user_id,expires_at) values (${digest(value)},${user.id},now()+interval '7 days')`;
+			return true;
+		});
+		if (!authenticated) return fail(400, { error: 'That username or password isn’t right.' });
 		cookies.set('session', value, {
 			path: '/',
 			httpOnly: true,

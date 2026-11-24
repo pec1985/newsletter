@@ -11,8 +11,8 @@ if (process.env.NODE_ENV === 'production' && !production) {
 }
 const username = production ? process.env.ADMIN_USERNAME : 'admin';
 const password = production ? process.env.ADMIN_PASSWORD : 'admin';
-if (!username || !password || (production && password.length < 16)) {
-	throw new Error('Set ADMIN_USERNAME and ADMIN_PASSWORD (at least 16 characters).');
+if (!username || !password || (production && password.length < 8)) {
+	throw new Error('Set ADMIN_USERNAME and ADMIN_PASSWORD (at least 8 characters).');
 }
 await sql`
 create table if not exists users (id uuid primary key default gen_random_uuid(), username text unique not null, password_hash text not null);
@@ -32,7 +32,7 @@ await migrateCampaignSchedule();
 await migrateApiKeys();
 await migrateAiUsage();
 await migrateKnowledge();
-await sql`insert into users (username,password_hash) values (${username},${hashPassword(password)}) on conflict(username) do nothing`;
+await sql`insert into users (username,password_hash) select ${username},${hashPassword(password)} where not exists (select 1 from users) on conflict(username) do nothing`;
 if (production) {
 	await sql`insert into settings (id,value) values (1,'{}') on conflict(id) do nothing`;
 	console.log('Production database ready. Existing users and settings preserved.');
