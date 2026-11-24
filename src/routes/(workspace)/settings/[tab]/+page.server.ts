@@ -2,6 +2,10 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { sql } from '#lib/server/db.js';
 import { digest, hashPassword, verifyPassword } from '#lib/server/security.js';
 import type { Actions, PageServerLoad } from './$types';
+
+const credentialAttempts = new Map<string, { count: number; reset: number }>();
+const credentialAttemptLimit = 5;
+const credentialWindow = 15 * 60 * 1000;
 export const load: PageServerLoad = async ({ params, parent }) => {
 	await parent();
 	if (params.tab === 'api') redirect(303, '/settings/api-keys');
@@ -27,6 +31,14 @@ export const actions: Actions = {
 		if (params.tab !== 'account') error(404);
 		if (!locals.user) redirect(303, '/login?next=%2Fsettings%2Faccount');
 		const id = locals.user.id;
+		const now = Date.now();
+		let attempt = credentialAttempts.get(id);
+		if (!attempt || attempt.reset <= now) {
+			attempt = { count: 0, reset: now + credentialWindow };
+			credentialAttempts.set(id, attempt);
+		}
+		if (attempt.count >= credentialAttemptLimit)
+			return fail(429, { error: 'Too many password attempts. Try again in 15 minutes.' });
 		const form = await request.formData();
 		const username = form.get('username');
 		const current = form.get('currentPassword');
@@ -57,7 +69,11 @@ export const actions: Actions = {
 					await tx`delete from sessions where user_id=${id} and token_hash<>${digest(cookies.get('session')!)}`;
 				return true;
 			});
-			if (!updated) return fail(400, { username, error: 'The current password is incorrect.' });
+			if (!updated) {
+				attempt.count++;
+				return fail(400, { username, error: 'The current password is incorrect.' });
+			}
+			credentialAttempts.delete(id);
 		} catch (cause) {
 			if (cause instanceof Error && 'code' in cause && cause.code === '23505')
 				return fail(409, { username, error: 'That username is already in use.' });

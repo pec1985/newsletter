@@ -45,7 +45,9 @@ try {
 	assert.equal((await read('')).status, 303);
 	assert.equal((await post(path + '?/credentials', {})).status, 303);
 	assert.match(await (await read(active)).text(), /Save account changes/);
-	assert.equal((await change(renamed, 'incorrect')).status, 400);
+	for (let attempt = 0; attempt < 5; attempt++)
+		assert.equal((await change(renamed, 'incorrect')).status, 400);
+	assert.equal((await change(renamed, password)).status, 429);
 	assert.equal((await change(taken, password)).status, 409);
 	assert.equal((await change(renamed, password, '1234567')).status, 400);
 	assert.equal((await change(renamed, password, replacement, 'mismatch')).status, 400);
