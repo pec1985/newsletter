@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: newsletter
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: newsletter
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
