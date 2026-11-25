@@ -10,6 +10,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	return resolve(event, {
 		transformPageChunk: ({ html }) =>
-			html.replace('%paraglide.lang%', 'en').replace('%paraglide.dir%', 'ltr')
+			html
+				.replace('%paraglide.lang%', event.locals.pageLanguage || 'en')
+				.replace('%paraglide.dir%', event.locals.pageLanguage ? 'auto' : 'ltr')
 	});
 };

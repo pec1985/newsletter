@@ -138,11 +138,13 @@ export async function upsertContacts(input: unknown) {
 				locale: c.locale,
 				unsubscribed: c.subscribed === false
 			}));
-			const saved = await tx`insert into contacts(name,email,locale,unsubscribed,unsubscribed_at)
-    select name,email,locale,unsubscribed,case when unsubscribed then now() else null end
+			const saved =
+				await tx`insert into contacts(name,email,locale,unsubscribed,unsubscribed_at,unsubscribe_reason)
+    select name,email,locale,unsubscribed,case when unsubscribed then now() else null end,case when unsubscribed then 'other' end
     from jsonb_to_recordset(${tx.json(batch)}::jsonb) as incoming(name text,email text,locale text,unsubscribed boolean)
     on conflict(email) do update set name=excluded.name,locale=excluded.locale,
      unsubscribed=contacts.unsubscribed or excluded.unsubscribed,
+     unsubscribe_reason=coalesce(contacts.unsubscribe_reason,excluded.unsubscribe_reason),
      unsubscribed_at=case when excluded.unsubscribed then coalesce(contacts.unsubscribed_at,now()) else contacts.unsubscribed_at end
     returning id,email`;
 			for (const row of saved) byEmail.set(row.email, row.id);
@@ -162,7 +164,7 @@ export async function updateContact(id: string, input: unknown) {
 			const subscribed = patch.subscribed ?? !existing.unsubscribed;
 			const [contact] =
 				await tx`update contacts set name=${patch.name ?? existing.name},email=${patch.email ?? existing.email},locale=${patch.locale ?? existing.locale},
-    unsubscribed=${!subscribed},unsubscribed_at=${subscribed ? null : existing.unsubscribed_at || new Date()}
+    unsubscribed=${!subscribed},unsubscribe_reason=${subscribed ? null : (existing.unsubscribe_reason ?? 'other')},unsubscribed_at=${subscribed ? null : existing.unsubscribed_at || new Date()}
     where id=${id} returning ${contactColumns}`;
 			return contact;
 		});

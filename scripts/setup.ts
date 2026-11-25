@@ -1,3 +1,4 @@
+import { migrateUnsubscribeReasons } from '../src/lib/server/unsubscribe-schema';
 import { migrateApiKeys } from '../src/lib/server/api-key-schema';
 import { migrateCampaignSchedule } from '../src/lib/server/campaign-schedule-schema';
 import { migrateTranslationApprovals } from '../src/lib/server/translation-approval-schema';
@@ -27,6 +28,7 @@ create table if not exists media (id uuid primary key default gen_random_uuid(),
 create index if not exists deliveries_campaign_idx on deliveries(campaign_id);
 create index if not exists events_delivery_idx on events(delivery_id);
 `.simple();
+await migrateUnsubscribeReasons();
 await migrateTranslationApprovals();
 await migrateCampaignSchedule();
 await migrateApiKeys();
