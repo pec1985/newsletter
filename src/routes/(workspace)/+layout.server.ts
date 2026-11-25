@@ -10,7 +10,9 @@ export const load: LayoutServerLoad = async ({ locals, url, params }) => {
 	const [campaigns, contacts, versions, deliverySummaries, config, aiUsage, documents] =
 		await Promise.all([
 			sql`select * from campaigns order by created_at desc`,
-			sql`select * from contacts where ${pathname === '/contacts'} or exists(select 1 from campaigns where id::text=${params.id || ''} and status='draft') order by name`,
+			params.id
+				? sql`select * from contacts where exists(select 1 from campaigns where id::text=${params.id} and status='draft') order by name`
+				: [],
 			sql`select * from versions where campaign_id::text=${params.id || ''} order by locale`,
 			sql<DeliverySummary[]>`select campaign_id,locale,count(*)::int as total,
 				count(*) filter(where status='sent')::int as sent,

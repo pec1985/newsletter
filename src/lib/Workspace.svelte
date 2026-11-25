@@ -4,6 +4,7 @@
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import { onMount, untrack, tick } from 'svelte';
 	import type { LayoutData } from '../routes/(workspace)/$types';
+	import type { PageData as ContactsData } from '../routes/(workspace)/contacts/$types';
 	import Icon from '#lib/Icon.svelte';
 	import KnowledgePanel from '#lib/KnowledgePanel.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -22,9 +23,16 @@
 	let {
 		data,
 		section = 'campaign',
+		contactList,
 		settingsTab = 'context',
 		campaignId = ''
-	}: { data: LayoutData; section?: string; settingsTab?: string; campaignId?: string } = $props();
+	}: {
+		data: LayoutData;
+		contactList?: ContactsData['contactList'];
+		section?: string;
+		settingsTab?: string;
+		campaignId?: string;
+	} = $props();
 	const initialCampaign = untrack(() => data.campaigns.find((c) => c.id === campaignId));
 	let bypassNavigationGuard = false;
 	let editorTab = $state('write');
@@ -67,9 +75,26 @@
 	let busy = $state('');
 	let notice = $state('');
 	let problem = $state('');
-	let contactSearch = $state('');
-	let contactLocale = $state('all');
-	let contactPermission = $state('all');
+	let searchTimer: ReturnType<typeof setTimeout>;
+	beforeNavigate(() => clearTimeout(searchTimer));
+
+	function updateFilters(form: HTMLFormElement, delay = 0) {
+		clearTimeout(searchTimer);
+		const url = new URL(page.url.href);
+		for (const [key, value] of new FormData(form)) {
+			const text = String(value);
+			if (text && (key === 'q' || text !== 'all')) url.searchParams.set(key, text);
+			else url.searchParams.delete(key);
+		}
+		url.searchParams.delete('page');
+		searchTimer = setTimeout(() => void goto(url, { reset: false, replace: true }), delay);
+	}
+
+	function contactsPageHref(number: number) {
+		const url = new URL(page.url.href);
+		url.searchParams.set('page', String(number));
+		return url.pathname + url.search;
+	}
 	const configuration = $derived(settingsLinks.some((link) => link.id === settingsTab));
 	const settingsLabel = $derived(
 		[...workspaceLinks, ...settingsLinks].find((link) => link.id === settingsTab)?.label ||
@@ -140,17 +165,6 @@
 		}
 		return counts;
 	});
-	const filteredContacts = $derived(
-		data.contacts.filter(
-			(c) =>
-				(contactLocale === 'all' || c.locale === contactLocale) &&
-				(contactPermission === 'all' ||
-					(contactPermission === 'allowed'
-						? !c.unsubscribed && !c.suppressed
-						: c.unsubscribed || c.suppressed)) &&
-				`${c.name} ${c.email}`.toLowerCase().includes(contactSearch.toLowerCase())
-		)
-	);
 	const dirty = $derived(
 		section === 'campaign' &&
 			campaign?.status === 'draft' &&
@@ -663,30 +677,52 @@
 				</section>
 			{:else}<CampaignStats {data} campaignId={campaign.id} />{/if}
 		{/if}
-	{:else if section === 'contacts'}
+	{:else if section === 'contacts' && contactList}
 		<section class="card contacts-card">
-			<div class="table-toolbar">
+			<form
+				class="table-toolbar"
+				method="GET"
+				onsubmit={(event) => {
+					event.preventDefault();
+					updateFilters(event.currentTarget);
+				}}
+			>
 				<div class="search-box">
 					<Icon name="search" size={17} /><input
 						aria-label="Search contacts"
 						placeholder="Search by name or email…"
-						bind:value={contactSearch}
+						name="q"
+						value={contactList.query}
+						oninput={(event) => updateFilters(event.currentTarget.form!, 250)}
 					/>
 				</div>
 				<span class="select-control">
-					<select aria-label="Filter contacts by email permission" bind:value={contactPermission}>
+					<select
+						aria-label="Filter contacts by email permission"
+						name="permission"
+						value={contactList.permission}
+						onchange={(event) => updateFilters(event.currentTarget.form!)}
+					>
 						<option value="all">All permissions</option><option value="allowed">
 							Can receive email
 						</option><option value="blocked">Cannot receive email</option>
 					</select><Icon name="down" size={14} />
 				</span>
 				<span class="select-control">
-					<select aria-label="Filter contacts by locale" bind:value={contactLocale}>
-						<option value="all">All languages</option>{#each locales as l}<option value={l}>
+					<select
+						aria-label="Filter contacts by locale"
+						name="locale"
+						value={contactList.locale}
+						onchange={(event) => updateFilters(event.currentTarget.form!)}
+					>
+						<option value="all">All languages</option>{#each contactList.locales as l (l)}<option
+								value={l}
+							>
 								{language(l)}
 							</option>{/each}
 					</select><Icon name="down" size={14} />
 				</span><button
+					type="button"
 					class="primary"
 					onclick={() => {
 						editingContactId = '';
@@ -698,7 +734,7 @@
 				>
 					<Icon name="plus" size={16} /> Add contact
 				</button>
-			</div>
+			</form>
 			<div class="table-wrap">
 				<table>
 					<thead>
@@ -708,7 +744,7 @@
 							</th>
 						</tr>
 					</thead><tbody>
-						{#each filteredContacts as c}<tr>
+						{#each contactList.rows as c (c.id)}<tr>
 								<td>
 									<div class="contact-name">
 										<span class="avatar">{c.name.slice(0, 1)}</span><strong>{c.name}</strong>
@@ -758,7 +794,22 @@
 				</table>
 			</div>
 			<div class="table-footer">
-				{filteredContacts.length} contacts <span>Imports preserve existing unsubscribes.</span>
+				{contactList.total ? contactList.offset + 1 : 0}–{contactList.offset +
+					contactList.rows.length} of {contactList.total.toLocaleString('en')} contacts
+				{#if contactList.pages > 1}
+					<nav aria-label="Contacts pagination">
+						{#if contactList.page > 1}<a href={contactsPageHref(contactList.page - 1)} rel="prev">
+								Previous
+							</a>{/if}
+						Page {contactList.page} of {contactList.pages}
+						{#if contactList.page < contactList.pages}<a
+								href={contactsPageHref(contactList.page + 1)}
+								rel="next"
+							>
+								Next
+							</a>{/if}
+					</nav>
+				{/if} <span>Imports preserve existing unsubscribes.</span>
 			</div>
 		</section>
 		<div class="subtle-callout">
