@@ -15,7 +15,9 @@ async function contact(token: string) {
 export const load: PageServerLoad = async ({ params, setHeaders }) => {
 	setHeaders({ 'cache-control': 'private, no-store', 'referrer-policy': 'no-referrer' });
 	const c = await contact(params.token);
+	const [company] = await sql`select value->>'companyName' as name from settings where id=1`;
 	return {
+		companyName: (company?.name as string | undefined)?.trim() || '',
 		unsubscribed: Boolean(c.unsubscribed),
 		...(await unsubscribeCopy(c.locale, c.campaign_id))
 	};

@@ -11,12 +11,12 @@
 			? data.copy.unsubscribed
 			: form?.subscribed
 				? data.copy.subscribed
-				: data.copy.title} · Postscript</title
+				: data.copy.title}{data.companyName ? ` · ${data.companyName}` : ''}</title
 	>
 </svelte:head>
 <div class="preference-page" lang={data.lang} dir="auto">
 	<main class="panel">
-		<div class="brand" dir="ltr">Postscript<span aria-hidden="true">✳</span></div>
+		{#if data.companyName}<div class="brand" dir="auto">{data.companyName}</div>{/if}
 		{#if data.unsubscribed}
 			<h1>{data.copy.unsubscribed}</h1>
 			<p>{data.copy.confirmation}</p>
@@ -69,9 +69,7 @@
 		letter-spacing: -0.055em;
 		margin-bottom: 1.65rem;
 	}
-	.brand > span {
-		font-size: 1.25rem;
-	}
+
 	h1 {
 		font-size: clamp(1.65rem, 4vw, 2rem);
 		line-height: 1.14;
