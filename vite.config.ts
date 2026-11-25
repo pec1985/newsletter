@@ -16,6 +16,8 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
+			// The server hook applies form origin checks with one RFC 8058 endpoint exception.
+			csrf: { trustedOrigins: ['*'] },
 			adapter: adapter()
 		}),
 

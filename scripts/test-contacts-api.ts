@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { sql } from '../src/lib/server/db';
 import { digest, token } from '../src/lib/server/security';
-const origin = 'http://127.0.0.1:5173';
+const origin = process.env.SMOKE_ORIGIN || 'http://127.0.0.1:5173';
 const suffix = `crud-${token().slice(0, 12)}.example.invalid`;
 let cookie = '';
 let key = '';
@@ -14,12 +14,12 @@ async function call(
 	body?: unknown,
 	expected = 200,
 	authentication: 'bearer' | 'session' | 'none' | 'invalid' = 'bearer',
-	requestOrigin = origin
+	requestOrigin: string | null = origin
 ) {
 	const response = await fetch(origin + '/api/contacts' + path, {
 		method,
 		headers: {
-			Origin: requestOrigin,
+			...(requestOrigin === null ? {} : { Origin: requestOrigin }),
 			...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
 			...(authentication === 'bearer'
 				? { Authorization: `Bearer ${key}` }
@@ -186,7 +186,9 @@ try {
 	)[0];
 	await call('/' + id, 'DELETE', undefined, 409);
 	await sql`update deliveries set status='queued' where id=${queued.id}`;
-	await call('/' + id, 'DELETE', undefined, 204);
+	await call('/' + id, 'DELETE', undefined, 403, 'session', null);
+	await call('/' + id, 'DELETE', undefined, 401, 'invalid', null);
+	await call('/' + id, 'DELETE', undefined, 204, 'bearer', null);
 	await call('?email=' + encodeURIComponent(draft.email), 'GET', undefined, 404);
 	const snapshots =
 		await sql`select contact_id,status from deliveries where id in (${sent.id},${queued.id})`;

@@ -21,7 +21,10 @@ async function tick() {
 			let providerId = null;
 			if (d.mode === 'ses') {
 				const config = await settings(true);
-				const origin = process.env.APP_ORIGIN || 'http://localhost:5173';
+				const appUrl = new URL(process.env.APP_ORIGIN || '');
+				if (appUrl.protocol !== 'https:')
+					throw new Error('SES delivery requires an HTTPS APP_ORIGIN.');
+				const origin = appUrl.origin;
 				const unsubscribe = `${origin}/unsubscribe/${d.token}`;
 				const html =
 					renderEmail(d.body) +
@@ -38,6 +41,11 @@ async function tick() {
 						Destination: { ToAddresses: [d.email] },
 						Content: {
 							Simple: {
+								Headers: [
+									{ Name: 'List-ID', Value: `Newsletter <newsletter.${appUrl.hostname}>` },
+									{ Name: 'List-Unsubscribe', Value: `<${unsubscribe}/one-click>` },
+									{ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
+								],
 								Subject: { Data: d.subject, Charset: 'UTF-8' },
 								Body: {
 									Html: { Data: html, Charset: 'UTF-8' },

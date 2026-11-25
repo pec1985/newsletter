@@ -148,6 +148,39 @@ try {
 	assert.equal(subscribed.unsubscribed, false);
 	assert.equal(subscribed.unsubscribe_reason, null);
 	assert.equal(subscribed.suppressed, true);
+	const oneClickUrl = preferenceUrl + '/one-click';
+	assert.equal((await fetch(oneClickUrl)).status, 405);
+	const postOneClick = (body: URLSearchParams | FormData) =>
+		fetch(oneClickUrl, { method: 'POST', body, redirect: 'manual' });
+	assert.equal((await postOneClick(new URLSearchParams({ reason: 'other' }))).status, 400);
+	for (const originHeader of [{}, { Origin: 'https://invalid.example' }] as HeadersInit[]) {
+		assert.equal(
+			(
+				await fetch(preferenceUrl + '?/unsubscribe', {
+					method: 'POST',
+					headers: originHeader,
+					body: new URLSearchParams({ reason: 'frequency' })
+				})
+			).status,
+			403
+		);
+	}
+	const [beforeClick] = await sql`select unsubscribed from contacts where id=${contactId}`;
+	assert.equal(beforeClick.unsubscribed, false);
+	assert.equal(
+		(await postOneClick(new URLSearchParams({ 'List-Unsubscribe': 'One-Click' }))).status,
+		204
+	);
+	const [optOut] =
+		await sql`select unsubscribed,unsubscribed_at,suppressed from contacts where id=${contactId}`;
+	assert.equal(optOut.unsubscribed, true);
+	assert.ok(optOut.unsubscribed_at);
+	assert.equal(optOut.suppressed, true);
+	const multipart = new FormData();
+	multipart.set('List-Unsubscribe', 'One-Click');
+	assert.equal((await postOneClick(multipart)).status, 204);
+	const [retry] = await sql`select unsubscribed_at from contacts where id=${contactId}`;
+	assert.deepEqual(retry.unsubscribed_at, optOut.unsubscribed_at);
 	const logout = await fetch(origin + '/logout', {
 		method: 'POST',
 		headers: { Origin: origin, Cookie: cookie },
