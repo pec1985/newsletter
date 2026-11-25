@@ -20,6 +20,8 @@ The script defaults to the `registry-credentials` image pull secret used by the 
 
 `ORIGIN` and `APP_ORIGIN` are set to `https://<domain>` by the Deployment. Other application environment variables belong in the ignored Secret. Secret values are not template-expanded. TCP probes check the web server, not database connectivity.
 
-This deploys the web container only. Prepare the production database schema separately; it does not run migrations, provision PostgreSQL, or start the email and knowledge worker scripts. Those require separate workloads if needed.
+Each newsletter pod runs the web app and an `email-worker` container. The worker starts polling the production queue as soon as it starts. To follow its logs in the default namespace, run `rtk kubectl -n newsletter logs -f deployment/newsletter -c email-worker` using the deployment's kubeconfig and context.
+
+Prepare PostgreSQL and apply schema migrations before deployment. Knowledge indexing requires a separate worker.
 
 Cert-manager integration follows [annotated Ingress resources](https://cert-manager.io/docs/usage/ingress/) and the existing issuer's [HTTP-01 configuration](https://cert-manager.io/docs/configuration/acme/http01/).
