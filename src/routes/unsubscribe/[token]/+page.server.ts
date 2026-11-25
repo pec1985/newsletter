@@ -12,14 +12,18 @@ async function contact(token: string) {
 	if (!row) error(404);
 	return row;
 }
-export const load: PageServerLoad = async ({ params, setHeaders }) => {
+export const load: PageServerLoad = async ({ params, setHeaders, locals }) => {
 	setHeaders({ 'cache-control': 'private, no-store', 'referrer-policy': 'no-referrer' });
 	const c = await contact(params.token);
 	const [company] = await sql`select value->>'companyName' as name from settings where id=1`;
+	const localized = await unsubscribeCopy(c.locale, c.campaign_id);
+	locals.pageLanguage = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(localized.lang)
+		? localized.lang
+		: 'en';
 	return {
 		companyName: (company?.name as string | undefined)?.trim() || '',
 		unsubscribed: Boolean(c.unsubscribed),
-		...(await unsubscribeCopy(c.locale, c.campaign_id))
+		...localized
 	};
 };
 export const actions: Actions = {

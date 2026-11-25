@@ -38,10 +38,11 @@ export async function unsubscribeCopy(locale: string, campaignId: string) {
 					},
 					{ role: 'user', content: JSON.stringify({ locale, strings: english }) }
 				],
-				{ task: 'translate', locale, campaignId, timeoutMs: 5000 },
+				{ task: 'translate', locale, campaignId, timeoutMs: 20000 },
 				await settings(true)
 			);
-			const parsed = JSON.parse(message.content ?? '');
+			const response = JSON.parse(message.content ?? '');
+			const parsed = response?.strings ?? response;
 			if (
 				!keys.every(
 					(key) =>
