@@ -9,3 +9,29 @@ export function emailLocale(locale: string) {
 export function audienceLocales(locales: string[]) {
 	return [...new Set(locales.map(emailLocale))];
 }
+
+// RTL scripts used by modern email locales, including explicit script variants.
+const rtlScripts = new Set([
+	'Adlm',
+	'Arab',
+	'Aran',
+	'Hebr',
+	'Mand',
+	'Mend',
+	'Nkoo',
+	'Rohg',
+	'Samr',
+	'Syrc',
+	'Thaa',
+	'Yezi'
+]);
+
+export function emailDirection(locale: string | undefined): 'ltr' | 'rtl' | 'auto' {
+	if (!locale) return 'auto';
+	try {
+		const script = new Intl.Locale(locale).maximize().script;
+		return script ? (rtlScripts.has(script) ? 'rtl' : 'ltr') : 'auto';
+	} catch {
+		return 'auto';
+	}
+}

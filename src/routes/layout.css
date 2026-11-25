@@ -512,7 +512,7 @@ main {
 }
 .email-preview ul,
 .email-preview ol {
-	padding-left: 23px;
+	padding-inline-start: 23px;
 	list-style: revert;
 	margin: 16px 0;
 }

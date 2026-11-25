@@ -205,6 +205,30 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			});
 			return json({ ok: true });
 		}
+		if (path === 'approve-all') {
+			if (
+				!Array.isArray(input.version_ids) ||
+				!input.version_ids.length ||
+				input.version_ids.some((id: unknown) => typeof id !== 'string')
+			)
+				error(400, 'Choose the previews to approve.');
+			const versionIds = new Set(input.version_ids);
+			await sql.begin(async (tx) => {
+				const [locked] =
+					await tx`select status, locales from campaigns where id=${input.id} for update`;
+				if (!locked || locked.status !== 'draft') error(409, 'This campaign is no longer a draft.');
+				const ready =
+					await tx`select id from versions where campaign_id=${input.id} and locale=any(${locked.locales}) and status='ready' for update`;
+				if (
+					ready.length !== locked.locales.length ||
+					ready.length !== versionIds.size ||
+					ready.some((v) => !versionIds.has(v.id))
+				)
+					error(409, 'The language previews have changed. Review them before approving all.');
+				await tx`update versions set approved_at=now(), approved_by=${locals.user!.id} where campaign_id=${input.id} and id=any(${ready.map((v) => v.id)}) and approved_at is null`;
+			});
+			return json({ ok: true });
+		}
 		if (path === 'approve-version') {
 			if (typeof input.version_id !== 'string' || typeof input.approved !== 'boolean')
 				error(400, 'Choose a preview and its approval status.');
