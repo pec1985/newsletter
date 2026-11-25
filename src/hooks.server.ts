@@ -5,8 +5,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const { request } = event;
 	if (request.method === 'POST' && event.route.id === '/unsubscribe/[token]/one-click')
 		return resolve(event);
+	// authorizeContacts validates bearer credentials and checks Origin for session writes.
+	const contactsApi = event.route.id === '/api/contacts' || event.route.id === '/api/contacts/[id]';
 	const type = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
 	if (
+		!contactsApi &&
 		['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
 		(!type ||
 			[
