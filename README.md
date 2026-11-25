@@ -195,3 +195,11 @@ Management routes require an authenticated browser session and same-origin write
 **Settings → API documentation** (`/settings/api-docs`) contains the expandable contacts endpoint examples. **Copy for LLM** copies a full Markdown reference with the current app origin, authentication, field definitions, import and consent rules, pagination, all request/response examples, and errors. The on-screen examples and Markdown use the same source in `src/lib/contacts-api-docs.ts`. No actual API keys or contact records are included. If clipboard access fails, the Markdown is shown for manual copying.
 
 Key lifecycle regression: `bun scripts/test-api-keys.ts`. Markdown completeness regression: `bun test tests/contacts-api-docs.test.ts`.
+
+## License
+
+Copyright (C) 2026 Pedro Enrique.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General Public License v3.0** as published by the Free Software Foundation. See [LICENSE](./LICENSE) for the full text.
+
+If you run a modified version of this software as a network service, the AGPL requires you to offer its users the corresponding source code of your modified version.
