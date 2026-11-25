@@ -1,4 +1,5 @@
 import { migrateUnsubscribeReasons } from '../src/lib/server/unsubscribe-schema';
+import { migrateEmailLocales } from '../src/lib/server/email-locale-migration';
 import { migrateApiKeys } from '../src/lib/server/api-key-schema';
 import { migrateCampaignSchedule } from '../src/lib/server/campaign-schedule-schema';
 import { migrateTranslationApprovals } from '../src/lib/server/translation-approval-schema';
@@ -32,6 +33,7 @@ await migrateUnsubscribeReasons();
 await migrateTranslationApprovals();
 await migrateCampaignSchedule();
 await migrateApiKeys();
+await migrateEmailLocales();
 await migrateAiUsage();
 await migrateKnowledge();
 await sql`insert into users (username,password_hash) select ${username},${hashPassword(password)} where not exists (select 1 from users) on conflict(username) do nothing`;

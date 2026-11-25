@@ -12,8 +12,7 @@ import { settings, saveSettings } from '#lib/server/settings.js';
 import { token } from '#lib/server/security.js';
 import { prepareTranslation } from '#lib/server/translations.js';
 import type { RequestHandler } from './$types';
-const validLocale = (s: unknown): s is string =>
-	typeof s === 'string' && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(s);
+import { audienceLocales, emailLocale, validLocale } from '#lib/email-locale.js';
 export const POST: RequestHandler = async ({ request, locals, params, url }) => {
 	const path = params.path;
 	if (!locals.user) error(401, 'Sign in to continue.');
@@ -112,7 +111,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				if (locked.status !== 'scheduled')
 					error(409, 'This campaign is no longer scheduled. Delivery may have started.');
 				await tx`delete from deliveries where campaign_id=${input.id} and status='queued'`;
-				await tx`update campaigns set status='draft',updated_at=now() where id=${input.id}`;
+				await tx`update campaigns set status='draft',locales=${audienceLocales(locked.locales)},source_locale=${emailLocale(locked.source_locale)},updated_at=now() where id=${input.id}`;
 			});
 			return json({ ok: true });
 		}
@@ -143,11 +142,11 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				const scheduledAt =
 					input.scheduled_at === undefined ? locked.scheduled_at : parseDate(input.scheduled_at);
 				await tx`update campaigns set scheduled_at=${scheduledAt} where id=${input.id}`;
-				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},locales=${input.locales},source_locale=${input.source_locale},updated_at=now() where id=${input.id} and status='draft'`;
+				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},locales=${audienceLocales(input.locales)},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
 				if (
 					locked.subject !== input.subject.trim().slice(0, 500) ||
 					locked.body !== input.body ||
-					locked.source_locale !== input.source_locale
+					locked.source_locale !== emailLocale(input.source_locale)
 				)
 					await tx`delete from versions where campaign_id=${input.id}`;
 			});
@@ -221,7 +220,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 		if (path === 'translate') {
 			if (input.locale !== undefined && !validLocale(input.locale))
 				error(400, 'Choose a valid locale.');
-			const locales = input.locale ? [input.locale] : campaign.locales;
+			const locales = input.locale ? [emailLocale(input.locale)] : campaign.locales;
 			for (const locale of locales)
 				await prepareTranslation(input.id, locale, input.retry === true);
 			return json({ ok: true });
