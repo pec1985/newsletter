@@ -1,27 +1,37 @@
 # Postscript
 
-For Docker builds and GHCR publishing, see [Container deployment](deploy/README.md).
+A self-hostable, AI-assisted newsletter workspace. Draft campaigns in Markdown, translate them per locale with your own LLM, send through AWS SES, and track opens and unsubscribes — all from a single workspace you run yourself.
 
-A local-first draft of an AI-assisted newsletter workspace, built with SvelteKit, TypeScript, Tailwind, Bun, and Postgres.
+**Features**
+
+- Markdown campaign editor with `{{name}}` personalization and sanitized HTML/plain-text previews
+- Per-locale translation using any OpenAI-compatible model, with per-language review and approval
+- Immutable, signed language versions; send immediately or schedule for a future time
+- AWS SES delivery via a background worker, with open tracking and RFC 8058 one-click unsubscribe
+- Contacts management with a bulk JSON API (up to 20,000 per import), consent handling, and revocable bearer keys
+- Retrieval-augmented drafting from an uploaded knowledge base (pgvector embeddings)
+- Per-campaign AI spend accounting and pluggable image hosting (local Postgres or ImageKit)
+
+Built with SvelteKit, TypeScript, Tailwind, Bun, and Postgres. For Docker builds and GHCR publishing, see [Container deployment](deploy/README.md).
 
 ## Local development
 
 ```bash
-rtk bun install
-rtk docker compose up -d --build --wait
+bun install
+docker compose up -d --build --wait
 ```
 
-Copy `.env.example` to `.env`. Set `SETTINGS_ENCRYPTION_KEY` to a random 32-byte hex key (generate with `rtk openssl rand -hex 32`). Keep the key stable: it encrypts integration credentials stored in Postgres. The local `.env` has already been prepared in this checkout.
+Copy `.env.example` to `.env`. Set `SETTINGS_ENCRYPTION_KEY` to a random 32-byte hex key (generate with `openssl rand -hex 32`). Keep the key stable: it encrypts integration credentials stored in Postgres.
 
 ```bash
-rtk bun run db:setup
-rtk bun run dev -- --host 127.0.0.1
+bun run db:setup
+bun run dev -- --host 127.0.0.1
 ```
 
 In a second terminal:
 
 ```bash
-rtk bun run worker
+bun run worker
 ```
 
 Open http://127.0.0.1:5173 and sign in with **admin / admin**. The setup script is idempotent and creates two example drafts and six contacts at example.com. These credentials and the seed script are for local testing only.
@@ -49,22 +59,22 @@ For externally received email, use a public HTTPS deployment and set `APP_ORIGIN
 ## Verification
 
 ```bash
-rtk bun run format
-rtk bun run check
-rtk bun test
-rtk bun scripts/smoke.ts
-rtk bun run build
+bun run format
+bun run check
+bun test
+bun scripts/smoke.ts
+bun run build
 ```
 
 The smoke test requires the dev server, database, worker, and local test account. It creates isolated test records and removes them afterward. Run it before adding an ImageKit key, since otherwise its upload would use ImageKit.
 
-## First-draft boundaries
+## Status and limitations
 
 This is a single-workspace MVP with container deployment support. Before broader production use, add SES event ingestion for delivery/bounces/complaints, production login hardening, sending rate limits, pagination for large contact lists, and recovery controls for interrupted jobs. A worker crash after submission can leave a delivery in `processing`; jobs are deliberately not automatically replayed because SES does not guarantee idempotent sends. Failed deliveries are visible but do not yet have a retry UI.
 
 Recorded opens are image requests, not proof of a human read. Email clients may block or proxy images. The footer link opens a confirmation page. SES campaigns also include a stable List-ID and RFC 8058 one-click unsubscribe headers. Mailbox providers can POST directly to opt out a recipient immediately. Opening either URL with GET never changes subscription status. Before a bulk send, inspect a delivered sample for passing SPF, DKIM and aligned DMARC. Verify that a passing DKIM signature covers both List-Unsubscribe and List-Unsubscribe-Post in its `h=` field. See [RFC 8058](https://www.rfc-editor.org/rfc/rfc8058#section-3.1) and [Gmail’s bulk sender requirements](https://support.google.com/mail/answer/81126).
 
-Signatures currently support a default plus a Spanish override. Review & send opens a dedicated page with a locale sidebar. Missing translations start automatically (up to three at a time), with progress and per-language errors. Each ready preview must be approved before local or SES delivery. Previews and approvals persist across navigation and unchanged saves; changing the subject, body, or source language invalidates them. Audience changes reuse existing translations and generate only missing locales. Failed or interrupted translations can be retried individually; ready translations are never regenerated just by reopening review. Use Edit in a language preview to update its subject and body, then Save changes. Edits clear that language’s approval and survive reopening review. Changing the original email replaces these manual edits with new translations. Existing databases need `rtk bun scripts/migrate-translation-approvals.ts` (also included in `db:migrate`); existing previews start unapproved. The database schema supports arbitrary locales. No credentials or local data are committed.
+Signatures currently support a default plus a Spanish override. Review & send opens a dedicated page with a locale sidebar. Missing translations start automatically (up to three at a time), with progress and per-language errors. Each ready preview must be approved before local or SES delivery. Previews and approvals persist across navigation and unchanged saves; changing the subject, body, or source language invalidates them. Audience changes reuse existing translations and generate only missing locales. Failed or interrupted translations can be retried individually; ready translations are never regenerated just by reopening review. Use Edit in a language preview to update its subject and body, then Save changes. Edits clear that language’s approval and survive reopening review. Changing the original email replaces these manual edits with new translations. Existing databases need `bun scripts/migrate-translation-approvals.ts` (also included in `db:migrate`); existing previews start unapproved. The database schema supports arbitrary locales.
 
 ## AI spending
 
@@ -72,13 +82,13 @@ Configure input, cached-input, and output prices (USD per million tokens) separa
 
 Usage is recorded even if generated content is invalid or a later translation fails. Changing settings does not reprice history. Costs are estimates, excluding taxes, email sending, and provider-specific billing adjustments. Missing usage, interrupted requests, and missing prices are explicitly marked unknown. Earlier conversations have no recoverable usage history. Deleting a draft preserves its accounting ledger with a detached campaign reference.
 
-Existing databases: `rtk bun scripts/migrate-ai-usage.ts` adds the ledger without modifying existing campaigns or settings. New databases create it during `db:setup`.
+Existing databases: `bun scripts/migrate-ai-usage.ts` adds the ledger without modifying existing campaigns or settings. New databases create it during `db:setup`.
 
 ## Navigation
 
 Workspace pages use SvelteKit filesystem routing. `/` redirects to `/campaigns`, which opens the latest campaign (or the empty state). Every campaign has `/campaigns/:id`; contacts uses `/contacts`; settings uses `/settings/context`, `/settings/ai`, `/settings/sender`, `/settings/delivery`, `/settings/images`, `/settings/api-keys`, and `/settings/api-docs`. The old `/settings/api` URL redirects to API keys. `/settings` redirects to company context. Direct links are authenticated and preserved through login. Navigation uses normal links with browser history and new-tab support. Unsaved draft or settings changes trigger a warning before leaving.
 
-Run `rtk bun scripts/test-navigation.ts` against the local server to verify route rendering, redirects, authentication, and unknown-route behavior.
+Run `bun scripts/test-navigation.ts` against the local server to verify route rendering, redirects, authentication, and unknown-route behavior.
 
 ## Company instructions and knowledge base
 
@@ -87,7 +97,7 @@ Run `rtk bun scripts/test-navigation.ts` against the local server to verify rout
 `/settings/knowledge` accepts Markdown/text files up to 10 MB. Uploads enter a persistent queue and are split by Markdown headings into bounded overlapping passages. A separate worker embeds these passages and saves them in Postgres using pgvector. No email worker is needed:
 
 ```bash
-rtk bun run knowledge:worker
+bun run knowledge:worker
 ```
 
 Configure an embedding model in AI engine. Optional embedding URL/token fields fall back to the AI connection. Set the input price per million tokens for accounting. Changing model or endpoint requires explicitly reindexing documents; the UI marks mismatched documents as needing reindexing. Search never mixes embedding profiles or vector dimensions.
@@ -98,11 +108,11 @@ Indexing swaps in a complete new set of chunks atomically. Pending/error documen
 
 Indexing spend is shown separately on Knowledge base. Query embeddings used by the agent are attributed to the campaign as Knowledge search; subsequent drafting calls include the retrieved text in their reported input usage. Search-preview requests also have ledger entries, without a campaign association.
 
-For an existing checkout, build/recreate the database image using the command above, then run `rtk bun run db:migrate`. The migration preserves existing data. A local pre-migration backup was saved under ignored `.local-backups/` in this checkout. The custom database image adds pgvector to the same Postgres 17 Alpine base; the volume is retained.
+On an existing install, build/recreate the database image using the command above, then run `bun run db:migrate`. The migration preserves existing data. The custom database image adds pgvector to the same Postgres 17 Alpine base; the volume is retained.
 
-Verification: `rtk bun test`, `rtk bun scripts/test-knowledge.ts`, `rtk bun scripts/test-ai-spending.ts`, and `rtk bun scripts/test-navigation.ts`. Run the knowledge integration test with the knowledge worker stopped; it uses a fake provider, exercises real pgvector queries and the tool-call loop, and removes its own test data. It does not spend provider credits or send email. Production adapters may need their request-body limit raised to accept 10 MB uploads.
+Verification: `bun test`, `bun scripts/test-knowledge.ts`, `bun scripts/test-ai-spending.ts`, and `bun scripts/test-navigation.ts`. Run the knowledge integration test with the knowledge worker stopped; it uses a fake provider, exercises real pgvector queries and the tool-call loop, and removes its own test data. It does not spend provider credits or send email. Production adapters may need their request-body limit raised to accept 10 MB uploads.
 
-Campaign report scale check: `rtk bun scripts/test-campaign-statistics.ts` seeds 20,001 isolated simulated deliveries, verifies pagination/filtering and bounded responses, then removes the test records. Requires the local dev server and database.
+Campaign report scale check: `bun scripts/test-campaign-statistics.ts` seeds 20,001 isolated simulated deliveries, verifies pagination/filtering and bounded responses, then removes the test records. Requires the local dev server and database.
 
 ### Campaign dates and scheduled sending
 
