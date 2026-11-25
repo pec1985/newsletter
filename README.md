@@ -30,7 +30,7 @@ Postgres runs on localhost port **55450**, with a persistent Docker volume. The 
 
 ## Try the workflow
 
-1. Open a campaign, edit the subject and Markdown body, and save.
+1. Open a campaign, edit the subject and Markdown body, and save. Use `{{name}}` in the subject or body text for the recipient’s full name. For example, `Hi {{name}},` becomes `Hi Ana García,` when sent to Ana García. Contacts with an empty name receive an empty substitution.
 2. Use the link and image controls to insert content. Preview shows sanitized HTML with a plain-text appearance.
 3. Choose audience locales. Without an AI key, select only the draft's source language to test sending. Additional locales require translation using the configured AI key.
 4. Review & send prepares immutable language versions with signatures. Approve each language, then click **Send Now**. The development server records simulated deliveries without sending email; production builds queue real SES deliveries. The server selects the mode and ignores client mode overrides.
