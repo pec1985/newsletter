@@ -35,6 +35,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				const form = new FormData();
 				form.set('file', file);
 				form.set('fileName', file.name);
+				form.set('folder', '/newsletter/images');
 				form.set('useUniqueFileName', 'true');
 				const response = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
 					method: 'POST',
