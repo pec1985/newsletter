@@ -2,6 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import type { LayoutData } from '../routes/(workspace)/$types';
+	import { emailDirection } from '#lib/email-locale.js';
 	import { renderEmail } from '#lib/email.js';
 	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -13,16 +14,23 @@
 	const versions = $derived(data.versions.filter((v) => v.campaign_id === campaignId));
 	let selected = $state<string>(untrack(() => campaign.locales[0] || ''));
 	const selectedLocale = $derived(locales.includes(selected) ? selected : locales[0]);
+	const direction = $derived(emailDirection(selectedLocale));
 	const current = $derived(versions.find((v) => v.locale === selectedLocale));
 	const approvedCount = $derived(
 		locales.filter((locale) =>
 			versions.some((v) => v.locale === locale && v.status === 'ready' && v.approved_at)
 		).length
 	);
+	const editable = $derived(campaign.status === 'draft');
+	const readyVersions = $derived(
+		versions.filter((v) => locales.includes(v.locale) && v.status === 'ready')
+	);
+	const canApproveAll = $derived(
+		editable && readyVersions.length === locales.length && approvedCount < locales.length
+	);
 	const recipients = $derived(
 		data.contacts.filter((c) => !c.unsubscribed && !c.suppressed && locales.includes(c.locale))
 	);
-	const editable = $derived(campaign.status === 'draft');
 	const canSend = $derived(
 		editable && locales.length > 0 && approvedCount === locales.length && recipients.length > 0
 	);
@@ -150,6 +158,19 @@
 			busy = '';
 		}
 	}
+	async function approveAll() {
+		if (!canApproveAll || busy || editingId) return;
+		busy = 'approve-all';
+		problem = '';
+		try {
+			await api('approve-all', { version_ids: readyVersions.map((version) => version.id) });
+			await invalidateAll();
+		} catch (cause) {
+			problem = cause instanceof Error ? cause.message : 'Could not approve all languages.';
+		} finally {
+			busy = '';
+		}
+	}
 	async function send() {
 		if (!canSend || busy || editingId) return;
 		busy = 'send';
@@ -208,6 +229,15 @@
 					<span>{locales.length}</span>
 				</div>
 				<p class="progress" aria-live="polite">{approvedCount} of {locales.length} approved</p>
+				{#if editable}
+					<button
+						class="secondary approve-all"
+						onclick={approveAll}
+						disabled={!canApproveAll || !!busy || !!editingId}
+					>
+						<Icon name="check" size={16} />{busy === 'approve-all' ? 'Approving…' : 'Approve all'}
+					</button>
+				{/if}
 				<nav aria-label="Select a language">
 					{#each locales as locale (locale)}
 						<button
@@ -273,6 +303,8 @@
 						>
 							<label>
 								Subject<input
+									lang={selectedLocale}
+									dir={direction}
 									bind:value={editSubject}
 									maxlength="500"
 									required
@@ -281,6 +313,8 @@
 							</label>
 							<label>
 								Email body<textarea
+									lang={selectedLocale}
+									dir={direction}
 									bind:value={editBody}
 									rows="20"
 									maxlength="100000"
@@ -303,12 +337,14 @@
 							</div>
 						</form>
 					{:else if current?.status === 'ready'}
-						<article class="email-card" lang={selectedLocale} dir="auto">
+						<article class="email-card">
 							<header>
 								<span>Subject</span>
-								<h3>{current.subject}</h3>
+								<h3 lang={selectedLocale} dir={direction}>{current.subject}</h3>
 							</header>
-							<div class="email-preview">{@html renderEmail(current.body)}</div>
+							<div class="email-preview" lang={selectedLocale} dir={direction}>
+								{@html renderEmail(current.body)}
+							</div>
 						</article>
 						<p class="preview-note">Unsubscribe link and tracking pixel are added per recipient.</p>
 					{:else if current?.status === 'failed'}
@@ -392,6 +428,12 @@
 		border-top: 1px solid var(--border);
 	}
 	.locale-sidebar {
+		position: sticky;
+		top: 64px;
+		align-self: start;
+		max-height: calc(100dvh - 64px);
+		display: flex;
+		flex-direction: column;
 		background: var(--surface);
 		padding: 24px 12px;
 		border-right: 1px solid var(--border);
@@ -411,11 +453,17 @@
 		color: var(--text-secondary);
 	}
 	.progress {
-		margin: 6px 12px 22px;
+		margin: 6px 12px 12px;
 		font-size: 12px;
 		color: var(--text-secondary);
 	}
+	.approve-all {
+		margin: 0 12px 12px;
+	}
 	nav {
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+		padding: 4px;
 		display: grid;
 		gap: 8px;
 	}
@@ -619,11 +667,14 @@
 			grid-template-columns: 1fr;
 		}
 		.locale-sidebar {
+			position: static;
+			max-height: none;
 			border-right: 0;
 			border-bottom: 1px solid var(--border);
 			padding: 20px 12px;
 		}
 		nav {
+			max-height: 26dvh;
 			grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 		}
 		.preview-panel {
