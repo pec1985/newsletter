@@ -1,3 +1,4 @@
+import { emailLocale, validLocale } from '#lib/email-locale.js';
 import { sql } from '#lib/server/db.js';
 import type { PageServerLoad } from './$types';
 
@@ -6,7 +7,9 @@ const pageSize = 50;
 export const load: PageServerLoad = async ({ url, parent }) => {
 	await parent();
 	const query = url.searchParams.get('q') || '';
-	const locale = url.searchParams.get('locale') || 'all';
+	const filterLocale = url.searchParams.get('locale') || 'all';
+	const locale =
+		filterLocale !== 'all' && validLocale(filterLocale) ? emailLocale(filterLocale) : filterLocale;
 	const permission = url.searchParams.get('permission') || 'all';
 	const requestedPage = Number(url.searchParams.get('page'));
 	const filter = sql`where true

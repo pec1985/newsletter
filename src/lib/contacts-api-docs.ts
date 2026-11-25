@@ -153,7 +153,7 @@ Replace YOUR_API_KEY with your secret key; never expose it in client-side code. 
 | id | UUID string | Generated contact identifier, returned by imports and lookups |
 | name | string, up to 200 characters | Required on create; optional on PATCH |
 | email | string, up to 254 characters | Required on create; trimmed and lowercased; unique in the database |
-| locale | string, up to 40 characters | Required on create; language code such as en, es, or en-US |
+| locale | string, up to 40 characters | Required on create; stored and returned as the first two lowercase letters (e.g. en-US becomes en) |
 | subscribed | boolean | Email preference; optional on create; defaults to true for new contacts |
 | suppressed | boolean, read-only | Internal sending block; cannot be changed through this API |
 | can_email | boolean, read-only | True only if subscribed and not suppressed |

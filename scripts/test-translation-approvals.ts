@@ -41,10 +41,13 @@ try {
 	const draft = {
 		subject: 'Review me',
 		body: 'Original draft',
-		source_locale: 'zz',
-		locales: ['zz', 'zy']
+		source_locale: 'zz-US',
+		locales: ['zz-US', 'zz-GB', 'zy']
 	};
 	await post('save', draft);
+	const [saved] = await sql`select source_locale, locales from campaigns where id=${id}`;
+	assert.equal(saved.source_locale, 'zz');
+	assert.deepEqual([...saved.locales], ['zz', 'zy']);
 	const reviewPage = await fetch(`${origin}/campaigns/${id}/review`, {
 		headers: { Cookie: cookie }
 	});
@@ -58,7 +61,7 @@ try {
 		await post('contacts', {
 			name: 'Approval test',
 			email: `approval-${id}@example.invalid`,
-			locale: 'zz'
+			locale: 'zz-CA'
 		})
 	).ids[0];
 	await post('send', { mode: 'local' }, 400);
@@ -96,7 +99,7 @@ try {
 	assert.equal((await sql`select body from campaigns where id=${id}`)[0].body, draft.body);
 	await post('approve-version', { version_id: versions[1].id, approved: true }, 409);
 	await post('edit-version', manualEdit, 409);
-	await post('translate', { locale: 'zy' });
+	await post('translate', { locale: 'zy-CH' });
 	assert.equal(
 		(await sql`select body from versions where id=${edited.id}`)[0].body,
 		manualEdit.body

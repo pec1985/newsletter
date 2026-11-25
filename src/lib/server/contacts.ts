@@ -1,3 +1,4 @@
+import { emailLocale, validLocale } from '../email-locale';
 import { error, json } from '@sveltejs/kit';
 import { authenticateApiKey } from './api-keys';
 import { sql } from './db';
@@ -79,13 +80,9 @@ export function parseContact(input: unknown, partial: boolean): Partial<ContactI
 	}
 	if (!partial || row.email !== undefined) result.email = normalizeEmail(row.email);
 	if (!partial || row.locale !== undefined) {
-		if (
-			typeof row.locale !== 'string' ||
-			!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(row.locale) ||
-			row.locale.length > 40
-		)
+		if (!validLocale(row.locale) || row.locale.length > 40)
 			error(400, 'Provide a valid locale, such as en or es.');
-		result.locale = row.locale;
+		result.locale = emailLocale(row.locale);
 	}
 	for (const field of ['subscribed', 'unsubscribed']) {
 		if (row[field] !== undefined && typeof row[field] !== 'boolean')

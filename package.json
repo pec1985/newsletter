@@ -22,7 +22,7 @@
 		"worker": "bun scripts/worker.ts",
 		"test": "bun test",
 		"knowledge:worker": "bun scripts/knowledge-worker.ts",
-		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts && bun scripts/migrate-translation-approvals.ts && bun scripts/migrate-campaign-schedule.ts && bun scripts/migrate-api-keys.ts && bun scripts/migrate-unsubscribe-reasons.ts",
+		"db:migrate": "bun scripts/migrate-ai-usage.ts && bun scripts/migrate-knowledge.ts && bun scripts/migrate-translation-approvals.ts && bun scripts/migrate-campaign-schedule.ts && bun scripts/migrate-api-keys.ts && bun scripts/migrate-unsubscribe-reasons.ts && bun scripts/migrate-email-locales.ts",
 		"start": "node build",
 		"db:init": "bun scripts/setup.ts --production"
 	},
