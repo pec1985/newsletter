@@ -917,7 +917,18 @@ tbody tr:last-child td {
 	margin-right: 6px;
 	color: var(--text-secondary);
 }
+.table-footer nav {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+.table-footer nav a {
+	text-decoration: underline;
+}
 .table-footer {
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
 	padding: 17px 23px;
 	border-top: 1px solid var(--border);
 	font-size: 12px;

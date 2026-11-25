@@ -4,4 +4,4 @@
 	let { data }: PageProps = $props();
 </script>
 
-<Workspace {data} section="contacts" />
+<Workspace {data} section="contacts" contactList={data.contactList} />
