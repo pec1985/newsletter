@@ -41,7 +41,7 @@ export async function prepareTranslation(
 					{
 						role: 'system',
 						content:
-							'Translate this email faithfully. Preserve every URL and Markdown image. Return JSON with subject and body. Do not add content.'
+							'Translate this email faithfully. Keep the recipient placeholder {{name}} exactly as written. Preserve every URL and Markdown image. Return JSON with subject and body. Do not add content.'
 					},
 					{
 						role: 'user',

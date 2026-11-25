@@ -2,7 +2,7 @@ import { workerLifecycle } from '../src/lib/server/worker-lifecycle';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 import { sql } from '../src/lib/server/db';
 import { settings } from '../src/lib/server/settings';
-import { renderEmail, escapeHtml } from '../src/lib/email';
+import { renderEmail, escapeHtml, personalizeEmail } from '../src/lib/email';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 async function tick() {
 	await releaseDueCampaigns();
@@ -27,7 +27,7 @@ async function tick() {
 				const origin = appUrl.origin;
 				const unsubscribe = `${origin}/unsubscribe/${d.token}`;
 				const html =
-					renderEmail(d.body) +
+					renderEmail(d.body, d.name) +
 					`<p><a href="${escapeHtml(unsubscribe)}">Unsubscribe</a></p><img src="${escapeHtml(origin)}/track/${d.token}" width="1" height="1" alt="" />`;
 				const client = new SESv2Client({
 					region: config.awsRegion || 'eu-west-1',
@@ -46,10 +46,13 @@ async function tick() {
 									{ Name: 'List-Unsubscribe', Value: `<${unsubscribe}/one-click>` },
 									{ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
 								],
-								Subject: { Data: d.subject, Charset: 'UTF-8' },
+								Subject: { Data: personalizeEmail(d.subject, d.name), Charset: 'UTF-8' },
 								Body: {
 									Html: { Data: html, Charset: 'UTF-8' },
-									Text: { Data: d.body + '\n\nUnsubscribe: ' + unsubscribe, Charset: 'UTF-8' }
+									Text: {
+										Data: personalizeEmail(d.body, d.name) + '\n\nUnsubscribe: ' + unsubscribe,
+										Charset: 'UTF-8'
+									}
 								}
 							}
 						}

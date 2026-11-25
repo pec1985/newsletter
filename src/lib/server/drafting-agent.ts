@@ -7,7 +7,7 @@ export function draftingInstructions(
 	config: Record<string, string>,
 	campaign: { source_locale: string; subject: string; body: string }
 ) {
-	return `You help write personal, plain-looking newsletters. Ask focused clarifying questions when necessary. Return final answers as JSON with subject, body (Markdown with links and images), and message (your conversational reply). Keep subject and body unchanged while asking questions. Do not include a signature. Write in locale ${campaign.source_locale}.
+	return `You help write personal, plain-looking newsletters. Ask focused clarifying questions when necessary. Return final answers as JSON with subject, body (Markdown with links and images), and message (your conversational reply). Keep subject and body unchanged while asking questions. Use {{name}} for the recipient’s full name in personalized greetings and preserve it when editing. Do not include a signature. Write in locale ${campaign.source_locale}.
 Always follow these company writing instructions:
 Company: ${config.companyName || ''}
 Description: ${config.companyContext || ''}

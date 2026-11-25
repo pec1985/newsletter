@@ -1,7 +1,12 @@
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
-export function renderEmail(body: string) {
+export function personalizeEmail(text: string, name: string) {
+	return text.replaceAll('{{name}}', () => name);
+}
+
+export function renderEmail(body: string, name?: string) {
 	return sanitizeHtml(marked.parse(body, { async: false, breaks: true }) as string, {
+		textFilter: name === undefined ? undefined : (text) => personalizeEmail(text, escapeHtml(name)),
 		allowedTags: [
 			'p',
 			'br',
