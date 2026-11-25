@@ -2,6 +2,22 @@ import type { Handle } from '@sveltejs/kit/hooks';
 import { sql } from '#lib/server/db.js';
 import { digest } from '#lib/server/security.js';
 export const handle: Handle = async ({ event, resolve }) => {
+	const { request } = event;
+	if (request.method === 'POST' && event.route.id === '/unsubscribe/[token]/one-click')
+		return resolve(event);
+	const type = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+	if (
+		['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
+		(!type ||
+			[
+				'application/x-www-form-urlencoded',
+				'multipart/form-data',
+				'text/plain',
+				'application/x-sveltekit-formdata'
+			].includes(type)) &&
+		request.headers.get('origin') !== event.url.origin
+	)
+		return new Response('Invalid request origin.', { status: 403 });
 	const session = event.cookies.get('session');
 	if (session) {
 		const [user] =
