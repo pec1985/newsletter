@@ -16,7 +16,7 @@ rtk env DOMAIN=newsletter.example.com ./k8s/deploy.sh --render
 
 Options are environment variables: `DOMAIN`, `NAMESPACE` (default `newsletter`), `IMAGE` (default `ghcr.io/pec1985/newsletter:latest`), `INGRESS_CLASS` (default `public`), `CLUSTER_ISSUER` (default `letsencrypt-prod`), `IMAGE_PULL_SECRET`, and `SECRETS_FILE`. Use an immutable `sha-…` tag or digest for reproducible deployments. The repository's container workflow publishes the image on main pushes.
 
-For a private GHCR image, create a `kubernetes.io/dockerconfigjson` pull secret in the target namespace using credentials with package read access, then set `IMAGE_PULL_SECRET` to its name. Create the namespace before creating that secret. No registry credentials are committed here.
+The script defaults to the `registry-credentials` image pull secret used by the newsletter cluster. For a new namespace, create the namespace and a `kubernetes.io/dockerconfigjson` secret with package read access before deploying. Set `IMAGE_PULL_SECRET` to use a different secret name, or set `IMAGE_PULL_SECRET=''` for an anonymous pull of a public image.
 
 `ORIGIN` and `APP_ORIGIN` are set to `https://<domain>` by the Deployment. Other application environment variables belong in the ignored Secret. Secret values are not template-expanded. TCP probes check the web server, not database connectivity.
 

@@ -17,7 +17,7 @@ export NAMESPACE="${NAMESPACE:-newsletter}"
 export IMAGE="${IMAGE:-ghcr.io/pec1985/newsletter:latest}"
 export INGRESS_CLASS="${INGRESS_CLASS:-public}"
 export CLUSTER_ISSUER="${CLUSTER_ISSUER:-letsencrypt-prod}"
-export IMAGE_PULL_SECRET="${IMAGE_PULL_SECRET:-}"
+export IMAGE_PULL_SECRET="${IMAGE_PULL_SECRET-registry-credentials}"
 export APP_ORIGIN="https://${DOMAIN}"
 # A new revision rolls pods on every deployment, refreshing secrets and mutable tags.
 export CONFIG_REVISION="$(python3 -c 'import uuid; print(uuid.uuid4())')"
