@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reasonLabel } from '#lib/unsubscribe.js';
 	import { page } from '$app/state';
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import { onMount, untrack, tick } from 'svelte';
@@ -720,7 +721,10 @@
 										{c.unsubscribed || c.suppressed ? 'Cannot send' : 'Can send'}
 									</span>
 									{#if c.unsubscribed || c.suppressed}<small>
-											{[c.unsubscribed && 'Unsubscribed', c.suppressed && 'Suppressed']
+											{[
+												c.unsubscribed && `Unsubscribed · ${reasonLabel(c.unsubscribe_reason)}`,
+												c.suppressed && 'Suppressed'
+											]
 												.filter(Boolean)
 												.join(' · ')}
 										</small>{/if}

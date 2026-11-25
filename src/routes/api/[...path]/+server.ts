@@ -83,7 +83,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			return json({ ok: true });
 		}
 		if (path === 'unsubscribe-contact') {
-			await sql`update contacts set unsubscribed=true,unsubscribed_at=now() where id=${input.id}`;
+			await sql`update contacts set unsubscribed=true,unsubscribed_at=coalesce(unsubscribed_at,now()),unsubscribe_reason=coalesce(unsubscribe_reason,'other') where id=${input.id}`;
 			return json({ ok: true });
 		}
 		if (path === 'campaigns') {

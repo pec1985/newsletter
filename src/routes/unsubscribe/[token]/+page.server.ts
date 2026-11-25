@@ -1,20 +1,38 @@
 import { sql } from '#lib/server/db.js';
-import { error } from '@sveltejs/kit';
+import { unsubscribeCopy } from '#lib/server/unsubscribe-copy.js';
+import { reasons } from '#lib/unsubscribe.js';
+import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-async function delivery(token: string) {
+
+async function contact(token: string) {
 	if (!/^[a-f0-9]{64}$/.test(token)) error(404);
-	const [d] = await sql`select contact_id from deliveries where token=${token}`;
-	if (!d) error(404);
-	return d;
+	const [row] =
+		await sql`select c.id,c.email,c.locale,c.unsubscribed,d.campaign_id from deliveries d
+		join contacts c on c.id=d.contact_id and lower(c.email)=lower(d.email) where d.token=${token}`;
+	if (!row) error(404);
+	return row;
 }
-export const load: PageServerLoad = async ({ params }) => {
-	await delivery(params.token);
-	return {};
+export const load: PageServerLoad = async ({ params, setHeaders }) => {
+	setHeaders({ 'cache-control': 'private, no-store', 'referrer-policy': 'no-referrer' });
+	const c = await contact(params.token);
+	return {
+		unsubscribed: Boolean(c.unsubscribed),
+		...(await unsubscribeCopy(c.locale, c.campaign_id))
+	};
 };
 export const actions: Actions = {
-	default: async ({ params }) => {
-		const d = await delivery(params.token);
-		await sql`update contacts set unsubscribed=true,unsubscribed_at=now() where id=${d.contact_id}`;
-		return { success: true };
+	unsubscribe: async ({ params, request }) => {
+		const c = await contact(params.token);
+		const reason = (await request.formData()).get('reason');
+		if (typeof reason !== 'string' || !Object.hasOwn(reasons, reason))
+			return fail(400, { invalid: true });
+		await sql`update contacts set unsubscribed=true,unsubscribed_at=now(),unsubscribe_reason=${reason}
+			where id=${c.id} and email=${c.email} and not unsubscribed`;
+	},
+	resubscribe: async ({ params }) => {
+		const c = await contact(params.token);
+		await sql`update contacts set unsubscribed=false,unsubscribed_at=null,unsubscribe_reason=null
+			where id=${c.id} and email=${c.email} and unsubscribed`;
+		return { subscribed: true };
 	}
 };

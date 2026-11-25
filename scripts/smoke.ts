@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { sql } from '../src/lib/server/db';
-const origin = 'http://127.0.0.1:5173';
+const origin = process.env.SMOKE_ORIGIN || 'http://127.0.0.1:5173';
 let cookie = '';
 let id = '';
 let contactId = '';
@@ -38,7 +38,7 @@ try {
 	cookie = login.headers.get('set-cookie')!.split(';')[0];
 	const page = await fetch(origin, { headers: { Cookie: cookie } });
 	assert.equal(page.status, 200);
-	assert.ok((await page.text()).includes('postscript'));
+	assert.match(await page.text(), /postscript/i);
 	const csrf = await fetch(origin + '/api/campaigns', {
 		method: 'POST',
 		headers: {
@@ -117,16 +117,19 @@ try {
 	const [opened] = await sql`select * from deliveries where id=${delivery.id}`;
 	assert.equal(opened.open_count, 2);
 	assert.ok(opened.first_opened_at);
-	const unsub = await fetch(origin + '/unsubscribe/' + delivery.token, {
-		method: 'POST',
-		headers: {
-			Origin: origin,
-			Accept: 'text/html',
-			'Content-Type': 'application/x-www-form-urlencoded'
-		},
-		body: ''
-	});
-	assert.equal(unsub.status, 200);
+	const preferenceUrl = origin + '/unsubscribe/' + delivery.token;
+	const preferenceAction = (action: string, body = '') =>
+		fetch(preferenceUrl + '?/' + action, {
+			method: 'POST',
+			headers: {
+				Origin: origin,
+				Accept: 'text/html',
+				'Content-Type': 'application/x-www-form-urlencoded'
+			},
+			body
+		});
+	assert.equal((await preferenceAction('unsubscribe', 'reason=invalid')).status, 400);
+	assert.equal((await preferenceAction('unsubscribe', 'reason=frequency')).status, 200);
 	await post('contacts', {
 		name: 'Smoke Test Updated',
 		email: 'smoke-test@example.invalid',
@@ -135,6 +138,16 @@ try {
 	});
 	const [updated] = await sql`select * from contacts where id=${contactId}`;
 	assert.equal(updated.unsubscribed, true);
+	assert.equal(updated.unsubscribe_reason, 'frequency');
+	const crm = await fetch(origin + '/contacts', { headers: { Cookie: cookie } });
+	assert.match(await crm.text(), /Unsubscribed · I receive too many emails\./);
+	assert.match(await (await fetch(preferenceUrl)).text(), /action="\?\/resubscribe"/);
+	await sql`update contacts set suppressed=true where id=${contactId}`;
+	assert.equal((await preferenceAction('resubscribe')).status, 200);
+	const [subscribed] = await sql`select * from contacts where id=${contactId}`;
+	assert.equal(subscribed.unsubscribed, false);
+	assert.equal(subscribed.unsubscribe_reason, null);
+	assert.equal(subscribed.suppressed, true);
 	const logout = await fetch(origin + '/logout', {
 		method: 'POST',
 		headers: { Origin: origin, Cookie: cookie },

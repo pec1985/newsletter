@@ -9,7 +9,7 @@ export type Message = {
 	response_items?: Record<string, unknown>[];
 	tool_calls?: { id: string; type: string; function: { name: string; arguments: string } }[];
 };
-type GenerationOptions = { campaignId: string; task: AiTask; locale?: string };
+type GenerationOptions = { campaignId: string; task: AiTask; locale?: string; timeoutMs?: number };
 export async function generate(messages: Message[], options: GenerationOptions) {
 	return generateWithConfig(messages, options, await settings(true));
 }
@@ -76,7 +76,7 @@ export async function requestCompletion(
 			redirect: 'error',
 			headers: { Authorization: `Bearer ${config.aiKey}`, 'Content-Type': 'application/json' },
 			body: JSON.stringify(body),
-			signal: AbortSignal.timeout(90000)
+			signal: AbortSignal.timeout(options.timeoutMs ?? 90000)
 		});
 	} catch {
 		await sql`update ai_usage set status='failed' where id=${entry.id}`;
