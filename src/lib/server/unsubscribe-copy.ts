@@ -15,15 +15,17 @@ const english = {
 };
 type Copy = typeof english;
 const keys = Object.keys(english) as (keyof Copy)[];
-const cache = new Map<string, { result: Promise<{ copy: Copy; lang: string }>; expires: number }>();
+const cache = new Map<
+	string,
+	{ result: Promise<{ copy: Copy; lang: string }>; retryAfter: number }
+>();
 
 export async function unsubscribeCopy(locale: string, campaignId: string) {
 	const fallback = { copy: english, lang: 'en' };
 	if (/^en(?:-|$)/i.test(locale)) return fallback;
 	const cached = cache.get(locale);
-	if (cached && cached.expires > Date.now()) return cached.result;
-	const entry = { result: translate(), expires: Date.now() + 86400000 };
-	if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+	if (cached && cached.retryAfter > Date.now()) return cached.result;
+	const entry = { result: translate(), retryAfter: Infinity };
 	cache.set(locale, entry);
 	return entry.result;
 
@@ -55,7 +57,7 @@ export async function unsubscribeCopy(locale: string, campaignId: string) {
 				lang: locale
 			};
 		} catch {
-			entry.expires = Date.now() + 60000;
+			entry.retryAfter = Date.now() + 60000;
 			return fallback;
 		}
 	}
