@@ -25,7 +25,7 @@ export const actions: Actions = {
 			active_within_days,
 			inactive_days
 		};
-		const invalid = (message: string) => fail(400, { message, values });
+		const invalid = (message: string) => fail(400, { message, values, id });
 		if (!name || name.length > 100)
 			return invalid('Give the audience a name of up to 100 characters.');
 		if ((plan?.length ?? 0) > 200 || (usage_label?.length ?? 0) > 200)
