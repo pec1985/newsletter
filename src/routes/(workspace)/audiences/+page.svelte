@@ -6,6 +6,8 @@
 		activityOperators
 	} from '#lib/audience-filters.js';
 	import { Tooltip } from 'flowbite-svelte';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import { fromAction } from 'svelte/attachments';
 	import { page } from '$app/state';
 	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -34,7 +36,21 @@
 		};
 	}
 	let skipped = $derived(skippedFields());
+	let saveError = $derived(form?.message ?? '');
+	const saveAudience: SubmitFunction<undefined, { message: string }> = ({ formElement }) => {
+		saveError = '';
+		return async ({ result, update }) => {
+			if (!formElement.isConnected) return;
+			if (result.type === 'failure') {
+				saveError = String(result.data?.message ?? 'Could not save the audience.');
+				return;
+			}
+			await update();
+			if (result.type === 'redirect' || result.type === 'success') editorId = null;
+		};
+	};
 	function openEditor(id: string) {
+		saveError = '';
 		showError = false;
 		editorId = id;
 		skipped = skippedFields();
@@ -149,7 +165,11 @@
 			onclose={() => (editorId = null)}
 		>
 			<h2 id="editor-title">{selected ? 'Edit audience' : 'Add audience'}</h2>
-			<form method="POST" action="/audiences">
+			<form
+				method="POST"
+				action="/audiences"
+				{@attach fromAction(enhance<undefined, { message: string }>, () => saveAudience)}
+			>
 				<input type="hidden" name="id" value={selected?.id || ''} />
 				<label>
 					Name<input
@@ -160,7 +180,7 @@
 						placeholder="Premium regulars"
 					/>
 				</label>
-				<p>Check Empty to skip a filter.</p>
+				<p>Check Empty to skip a filter. Blank usage and last usage fields are also skipped.</p>
 				<div class="filters">
 					<div class="filter">
 						<label for="filter-plan">Plan</label>
@@ -260,7 +280,7 @@
 						</div>
 					{/each}
 				</div>
-				{#if showError}<p role="alert">{form?.message}</p>{/if}
+				{#if saveError}<p role="alert">{saveError}</p>{/if}
 				<div class="actions">
 					<button
 						type="button"
@@ -494,6 +514,10 @@
 	}
 	input {
 		min-width: 0;
+	}
+	p[role='alert'] {
+		color: #a71930;
+		font-weight: 600;
 	}
 	p {
 		color: var(--text-secondary);

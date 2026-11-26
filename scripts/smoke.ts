@@ -75,6 +75,27 @@ try {
 	});
 	assert.equal(createdAudience.status, 303);
 	const [audience] = await sql`select id from audiences where name=${id}`;
+	// An enabled date control with only a placeholder should save as an omitted filter.
+	const editAudience = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({
+			id: audience.id,
+			name: id,
+			plan: 'smoke-test',
+			usage_operator: '=',
+			usage_value: 'frequent',
+			activity_operator: '<',
+			activity_value: ''
+		}),
+		redirect: 'manual'
+	});
+	assert.equal(editAudience.status, 303);
+	const [savedFilters] =
+		await sql`select usage_label, active_within_days,inactive_days from audiences where id=${audience.id}`;
+	assert.equal(savedFilters.usage_label, 'frequent');
+	assert.equal(savedFilters.active_within_days, null);
+	assert.equal(savedFilters.inactive_days, null);
 	const builder = await fetch(origin + '/audiences?edit=' + audience.id, {
 		headers: { Cookie: cookie }
 	});

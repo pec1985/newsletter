@@ -48,10 +48,6 @@ export const actions: Actions = {
 			(!plan || !(await sql`select 1 from contacts where plan=${plan} limit 1`).length)
 		)
 			return invalid('Choose an available plan or check Empty.');
-		if (!empty.usage_empty && usage.every((rule) => !rule.value))
-			return invalid('Enter usage or check Empty.');
-		if (!empty.activity_empty && activity.every((rule) => !rule.value))
-			return invalid('Enter last usage or check Empty.');
 		let filters;
 		try {
 			filters = parseFilters(usage, activity);
