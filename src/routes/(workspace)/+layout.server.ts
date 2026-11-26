@@ -1,4 +1,4 @@
-import { audienceSummaries, selectionMatch, selectionSummary } from '#lib/server/audiences.js';
+import { listAudiences, selectionMatch, selectionSummary } from '#lib/server/audiences.js';
 import type { DeliverySummary } from '#lib/delivery-stats.js';
 import { embeddingConnection } from '#lib/server/embeddings.js';
 import { redirect } from '@sveltejs/kit';
@@ -11,7 +11,7 @@ export const load: LayoutServerLoad = async ({ locals, url, params }) => {
 	const [campaigns, audiences, versions, deliverySummaries, config, aiUsage, documents] =
 		await Promise.all([
 			sql`select c.*,array(select ca.audience_id from campaign_audiences ca where ca.campaign_id=c.id order by ca.audience_id) as audience_ids from campaigns c order by c.created_at desc`,
-			params.id || pathname === '/audiences' ? audienceSummaries() : [],
+			params.id || pathname === '/audiences' ? listAudiences() : [],
 			sql`select * from versions where campaign_id::text=${params.id || ''} order by locale`,
 			sql<DeliverySummary[]>`select campaign_id,locale,count(*)::int as total,
 				count(*) filter(where status='sent')::int as sent,

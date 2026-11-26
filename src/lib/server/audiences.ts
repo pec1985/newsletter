@@ -71,18 +71,9 @@ function previewQuery(a: Audience) {
 	};
 }
 
-export async function audienceSummaries() {
+export async function listAudiences() {
 	const audiences = await sql<Audience[]>`select * from audiences order by lower(name)`;
-	return Promise.all(
-		audiences.map(async (audience) => {
-			const [summary] = await sql<
-				{ recipients: number; locales: string[] }[]
-			>`select count(*)::int as recipients,
-			coalesce(array_agg(distinct c.locale order by c.locale), '{}'::text[]) as locales
-			from contacts c where ${audienceMatch(audience)}`;
-			return { ...audience, ...summary, ...previewQuery(audience) };
-		})
-	);
+	return audiences.map((audience) => ({ ...audience, ...previewQuery(audience) }));
 }
 
 export function readAudienceSelection(input: {

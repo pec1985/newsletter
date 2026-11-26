@@ -124,9 +124,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 		if (campaign.status !== 'draft') error(400, 'Sent campaigns are read-only.');
 		if (path === 'audience-preview') {
 			const selection = readAudienceSelection(input);
-			return json(
-				await sql.begin(async (tx) => loadSelectionSummary(tx, selection))
-			);
+			return json(await sql.begin(async (tx) => loadSelectionSummary(tx, selection)));
 		}
 		if (path === 'save') {
 			if (

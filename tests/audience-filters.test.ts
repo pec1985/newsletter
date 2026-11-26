@@ -16,7 +16,7 @@ test('saved bounds retain strict comparisons and existing two-sided windows', ()
 });
 
 test('numeric equality and a numeric-looking label round-trip independently', () => {
-	for (const value of ['0', '"0"', 'frequent']) {
+	for (const value of ['0', '"0"', '" 0 "', 'frequent']) {
 		const rule = [{ operator: '=', value }];
 		expect(usageRows(parseFilters(rule, []))).toEqual(rule);
 	}

@@ -19,7 +19,10 @@ export function usageRows(a: StoredFilters = {}): Comparison[] {
 		return [
 			{
 				operator: '=',
-				value: decimal.test(label) || label.startsWith('"') ? JSON.stringify(label) : label
+				value:
+					decimal.test(label) || label.trim() !== label || label.startsWith('"')
+						? JSON.stringify(label)
+						: label
 			}
 		];
 	}
