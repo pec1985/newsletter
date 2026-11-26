@@ -6,6 +6,7 @@
 		activityOperators
 	} from '#lib/audience-filters.js';
 	import { page } from '$app/state';
+	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
 	import type { PageProps } from './$types';
 	let { data, form }: PageProps = $props();
@@ -108,9 +109,11 @@
 					{#each usage as rule, i (i)}
 						<div class="filter">
 							<label for={'usage-' + i}>Usage</label>
-							<select aria-label="Usage operator" name="usage_operator" value={rule.operator}>
-								{#each usageOperators as op (op)}<option value={op}>{op}</option>{/each}
-							</select>
+							<div class="operator">
+								<select aria-label="Usage operator" name="usage_operator" value={rule.operator}>
+									{#each usageOperators as op (op)}<option value={op}>{op}</option>{/each}
+								</select><span class="operator-chevron"><Icon name="down" size={12} /></span>
+							</div>
 							<input
 								id={'usage-' + i}
 								name="usage_value"
@@ -123,13 +126,15 @@
 					{#each activity as rule, i (i)}
 						<div class="filter">
 							<label for={'activity-' + i}>Last usage</label>
-							<select
-								aria-label="Last usage operator"
-								name="activity_operator"
-								value={rule.operator}
-							>
-								{#each activityOperators as op (op)}<option value={op}>{op}</option>{/each}
-							</select>
+							<div class="operator">
+								<select
+									aria-label="Last usage operator"
+									name="activity_operator"
+									value={rule.operator}
+								>
+									{#each activityOperators as op (op)}<option value={op}>{op}</option>{/each}
+								</select><span class="operator-chevron"><Icon name="down" size={12} /></span>
+							</div>
 							<div class="duration">
 								<input
 									id={'activity-' + i}
@@ -223,9 +228,21 @@
 		align-items: center;
 		gap: 0.6rem;
 	}
+	.operator {
+		position: relative;
+	}
+	.operator-chevron {
+		position: absolute;
+		inset-inline-end: 0.5rem;
+		top: 50%;
+		transform: translateY(-50%);
+		display: flex;
+		pointer-events: none;
+		color: var(--text-secondary);
+	}
 	.filter select {
-		appearance: auto;
-		padding: 0 0.5rem;
+		appearance: none;
+		padding-inline: 0.25rem 1.5rem;
 		text-align: center;
 	}
 	.equals {
