@@ -27,8 +27,15 @@ export async function migrateAudiences() {
 					add constraint campaigns_audience_id_fkey foreign key (audience_id) references audiences(id) on delete set null;
 			end if;
 		end $$`;
+		await tx`alter table campaigns add column if not exists all_users boolean not null default false`;
+		await tx`create table if not exists campaign_audiences (
+			campaign_id uuid not null references campaigns(id) on delete cascade,
+			audience_id uuid not null references audiences(id) on delete cascade,
+			primary key(campaign_id,audience_id)
+		)`;
+		await tx`insert into campaign_audiences select id,audience_id from campaigns where audience_id is not null on conflict do nothing`;
 		await tx`alter table campaigns alter column locales set default '{}'::text[]`;
-		await tx`update campaigns set locales='{}' where status='draft' and audience_id is null and cardinality(locales)>0`;
+		await tx`update campaigns set locales='{}' where status='draft' and not all_users and not exists(select 1 from campaign_audiences where campaign_id=campaigns.id) and cardinality(locales)>0`;
 		await tx`create index if not exists contacts_audience_plan_idx on contacts(plan) where not unsubscribed and not suppressed`;
 		await tx`create index if not exists contacts_audience_usage_idx on contacts(usage) where not unsubscribed and not suppressed`;
 		await tx`create index if not exists contacts_audience_activity_idx on contacts(last_used_at) where not unsubscribed and not suppressed`;

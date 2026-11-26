@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Dropdown } from 'flowbite-svelte';
 	import { reasonLabel } from '#lib/unsubscribe.js';
 	import { page } from '$app/state';
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
@@ -139,9 +140,54 @@
 	const deliverySummary = $derived(
 		summarizeDeliveries(data.deliverySummaries.filter((d) => d.campaign_id === campaign?.id))
 	);
-	let audienceId = $derived<string>(campaign?.audience_id || '');
-	const selectedAudience = $derived(data.audiences.find((a) => a.id === audienceId));
-	const recipientCount = $derived(Number(selectedAudience?.recipients || 0));
+	let audienceIds = $state<string[]>(initialCampaign?.audience_ids || []);
+	let allUsers = $state(Boolean(initialCampaign?.all_users));
+	let previewCount = $state<number | null>(null);
+	let previewRequest = 0;
+	const selectionChanged = $derived(
+		allUsers !== Boolean(campaign?.all_users) ||
+			audienceIds.join() !== (campaign?.audience_ids || []).join()
+	);
+	const recipientCount = $derived(
+		selectionChanged ? previewCount : data.savedAudienceSummary.recipients
+	);
+	const audienceLabel = $derived(
+		allUsers
+			? 'All users'
+			: data.audiences
+					.filter((a) => audienceIds.includes(a.id))
+					.map((a) => a.name)
+					.join(', ') || 'Choose an audience'
+	);
+
+	async function toggleAudience(id: string | null, checked: boolean) {
+		if (id === null) {
+			allUsers = checked;
+			audienceIds = [];
+		} else {
+			audienceIds = checked
+				? [...audienceIds, id].sort()
+				: audienceIds.filter((other) => other !== id);
+		}
+		const request = ++previewRequest;
+		previewCount = null;
+		if (!selectionChanged) return;
+		if (!allUsers && !audienceIds.length) {
+			previewCount = 0;
+			return;
+		}
+		try {
+			const summary = await api('audience-preview', {
+				id: campaign?.id,
+				audience_ids: audienceIds,
+				all_users: allUsers
+			});
+			if (request === previewRequest) previewCount = summary.recipients;
+		} catch (cause) {
+			if (request === previewRequest)
+				problem = cause instanceof Error ? cause.message : 'Could not count recipients.';
+		}
+	}
 	const dirty = $derived(
 		section === 'campaign' &&
 			campaign?.status === 'draft' &&
@@ -149,7 +195,7 @@
 				subject !== campaign.subject ||
 				body !== campaign.body ||
 				sourceLocale !== campaign.source_locale ||
-				audienceId !== (campaign.audience_id || ''))
+				selectionChanged)
 	);
 	const language = (locale: string) => {
 		try {
@@ -169,6 +215,8 @@
 			subject = campaign.subject;
 			body = campaign.body;
 			sourceLocale = campaign.source_locale;
+			audienceIds = campaign.audience_ids;
+			allUsers = campaign.all_users;
 		}
 	});
 	$effect(() => {
@@ -239,7 +287,8 @@
 			id: campaign.id,
 			subject,
 			body,
-			audience_id: audienceId || null,
+			audience_ids: audienceIds,
+			all_users: allUsers,
 			source_locale: sourceLocale,
 			scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
 		});
@@ -485,11 +534,39 @@
 								/>
 							</label><span class="format-hint">Markdown supported</span><button
 								class="audience-toolbar-button"
-								aria-haspopup="dialog"
-								onclick={() => (showAudience = true)}
+								aria-expanded={showAudience}
+								aria-controls="draft-audience-options"
 							>
 								<Icon name="users" size={16} /> Audience <Icon name="down" size={14} />
 							</button>
+							<Dropdown
+								bind:isOpen={showAudience}
+								id="draft-audience-options"
+								role="menu"
+								aria-label="Audience selection"
+								strategy="fixed"
+								placement="bottom-end"
+								triggerDelay={0}
+								class="draft-audience-options"
+							>
+								<label>
+									<input
+										type="checkbox"
+										checked={allUsers}
+										onchange={(e) => toggleAudience(null, e.currentTarget.checked)}
+									/>All users
+								</label>
+								{#each data.audiences as item (item.id)}
+									<label>
+										<input
+											type="checkbox"
+											checked={audienceIds.includes(item.id)}
+											disabled={allUsers}
+											onchange={(e) => toggleAudience(item.id, e.currentTarget.checked)}
+										/>{item.name}
+									</label>
+								{/each}
+							</Dropdown>
 						</div>
 						<textarea
 							class="body-editor"
@@ -505,8 +582,9 @@
 						</div>{/if}
 					<div class="editor-footer">
 						<span>
-							<Icon name="users" size={14} />{recipientCount.toLocaleString()} recipients · {selectedAudience?.name ||
-								'Choose an audience'}
+							<Icon name="users" size={14} />{recipientCount === null
+								? 'Counting recipients…'
+								: recipientCount.toLocaleString() + ' recipients'} · {audienceLabel}
 						</span>
 						<span>{body.trim() ? body.trim().split(/\s+/).length : 0} words</span>
 					</div>
@@ -1160,43 +1238,6 @@
 			</form>
 		</div>
 	</div>{/if}
-{#if showAudience}
-	<div class="modal-backdrop">
-		<div
-			class="modal audience-modal"
-			role="dialog"
-			tabindex="-1"
-			aria-modal="true"
-			aria-label="Choose audience"
-			use:modal={() => (showAudience = false)}
-		>
-			<button
-				class="modal-close"
-				aria-label="Close audience picker"
-				onclick={() => (showAudience = false)}
-			>
-				<Icon name="close" />
-			</button>
-			<h2>Choose your audience</h2>
-			<label>
-				Saved audience
-				<select bind:value={audienceId}>
-					<option value="">Choose an audience</option>
-					{#each data.audiences as item (item.id)}
-						<option value={item.id}>{item.name}</option>
-					{/each}
-				</select>
-			</label>
-			<a href="/audiences">Manage audiences</a>
-			<div class="audience-picker-footer">
-				<span aria-live="polite">
-					{recipientCount.toLocaleString()} eligible recipients
-				</span><button class="primary" onclick={() => (showAudience = false)}>Done</button>
-			</div>
-		</div>
-	</div>
-{/if}
-
 {#if showSpend}
 	<div class="modal-backdrop">
 		<div
@@ -1293,6 +1334,40 @@
 {/if}
 
 <style>
+	:global(.draft-audience-options) {
+		margin: 0;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		box-shadow: 0 0.4rem 1.4rem #22133724;
+		padding: 0.35rem;
+		min-width: 13rem;
+		max-width: min(22rem, 95vw);
+		max-height: min(22rem, 50vh);
+		overflow: auto;
+	}
+	:global(.draft-audience-options) label {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 0.55rem 0.65rem;
+		margin: 0;
+		cursor: pointer;
+		font-size: 0.9375rem;
+	}
+	:global(.draft-audience-options) label:has(:disabled) {
+		opacity: 0.55;
+		cursor: default;
+	}
+	:global(.draft-audience-options) input {
+		width: 1rem;
+		height: 1rem;
+		flex: none;
+		padding: 0;
+		accent-color: var(--accent);
+	}
+
 	.schedule-summary {
 		margin: 0 32px;
 		padding: 28px;

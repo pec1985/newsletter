@@ -139,7 +139,7 @@
 		>
 			<h2 id="delete-title">Delete audience?</h2>
 			<p id="delete-description">
-				Delete “{deleting.name}”? Drafts using this audience will need a new selection.
+				Delete “{deleting.name}”? This removes it from draft audience selections.
 			</p>
 			<form method="POST" action="/audiences" class="actions">
 				<input type="hidden" name="id" value={deleting.id} />

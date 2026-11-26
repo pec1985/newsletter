@@ -28,10 +28,17 @@
 	const canApproveAll = $derived(
 		editable && readyVersions.length === locales.length && approvedCount < locales.length
 	);
-	const audience = $derived(data.audiences.find((a) => a.id === campaign.audience_id));
-	const recipientCount = $derived(Number(audience?.recipients || 0));
+	const audienceLabel = $derived(
+		campaign.all_users
+			? 'All users'
+			: data.audiences
+					.filter((a) => campaign.audience_ids.includes(a.id))
+					.map((a) => a.name)
+					.join(', ') || 'Choose an audience'
+	);
+	const recipientCount = $derived(data.savedAudienceSummary.recipients);
 	const needsReview = $derived(
-		audience?.locales.some((locale: string) => !locales.includes(locale))
+		data.savedAudienceSummary.locales.some((locale) => !locales.includes(locale))
 	);
 	const canSend = $derived(
 		editable &&
@@ -392,7 +399,7 @@
 					{#if needsReview}<a href={`/campaigns/${campaignId}`}>
 							Return to the draft to review newly matched languages.
 						</a>{/if}<span>
-						{audience?.name || 'Choose an audience'} · {recipientCount} eligible recipients
+						{audienceLabel} · {recipientCount} eligible recipients
 					</span><span>
 						{canSend
 							? 'All languages approved. Ready to send.'
