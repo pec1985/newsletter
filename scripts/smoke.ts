@@ -52,18 +52,39 @@ try {
 	const contact = await post('contacts', {
 		name: 'Smoke Test',
 		email: 'smoke-test@example.invalid',
-		locale: 'zz'
+		locale: 'zz',
+		plan: 'smoke-test',
+		usage: 'frequent',
+		last_used_at: new Date().toISOString()
 	});
 	contactId = contact.ids[0];
 	const created = await post('campaigns', { title: 'Smoke test' });
 	id = created.id;
+	const createdAudience = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({
+			name: id,
+			plan: 'smoke-test',
+			usage_label: 'frequent',
+			active_within_days: '7'
+		}),
+		redirect: 'manual'
+	});
+	assert.equal(createdAudience.status, 303);
+	const [audience] = await sql`select id from audiences where name=${id}`;
+	const builder = await fetch(origin + '/audiences?edit=' + audience.id, {
+		headers: { Cookie: cookie }
+	});
+	assert.equal(builder.status, 200);
+	assert.match(await builder.text(), /Edit audience/);
 	await post('save', {
 		id,
 		title: 'Smoke test',
 		subject: 'A test message',
 		body: 'Hello, [friend](https://example.com).',
 		source_locale: 'zz',
-		locales: ['zz']
+		audience_id: audience.id
 	});
 	await post('translate', { id });
 	const upload = new FormData();
@@ -197,6 +218,7 @@ try {
 		await sql`delete from campaigns where id=${id}`;
 	}
 	if (contactId) await sql`delete from contacts where id=${contactId}`;
+	await sql`delete from audiences where name=${id}`;
 	if (mediaId) await sql`delete from media where id=${mediaId}`;
 	await sql.end();
 }

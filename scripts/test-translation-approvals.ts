@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { sql } from '../src/lib/server/db';
 import { prepareTranslation } from '../src/lib/server/translations';
-const origin = 'http://127.0.0.1:5173';
+const origin = process.env.SMOKE_ORIGIN || 'http://127.0.0.1:5173';
 let id = '';
-let contactId = '';
 let cookie = '';
 async function post(
 	path: string,
@@ -38,16 +37,29 @@ try {
 	assert.equal(login.status, 303);
 	cookie = login.headers.get('set-cookie')!.split(';')[0];
 	id = (await post('campaigns', { title: 'Approval regression test' })).id;
+	const audiences = [];
+	for (const [index, locale] of ['zz-CA', 'zy', 'zx', 'zv'].entries()) {
+		await post('contacts', {
+			name: 'Approval test',
+			email: `approval-${index}-${id}@example.invalid`,
+			plan: id,
+			usage: index,
+			locale
+		});
+		const [audience] =
+			await sql`insert into audiences (name,plan,max_usage) values (${id + '-' + index},${id},${index}) returning id`;
+		audiences.push(audience.id);
+	}
 	const draft = {
 		subject: 'Review me',
 		body: 'Original draft',
 		source_locale: 'zz-US',
-		locales: ['zz-US', 'zz-GB', 'zy']
+		audience_id: audiences[1]
 	};
 	await post('save', draft);
 	const [saved] = await sql`select source_locale, locales from campaigns where id=${id}`;
 	assert.equal(saved.source_locale, 'zz');
-	assert.deepEqual([...saved.locales], ['zz', 'zy']);
+	assert.deepEqual([...saved.locales], ['zy', 'zz']);
 	const reviewPage = await fetch(`${origin}/campaigns/${id}/review`, {
 		headers: { Cookie: cookie }
 	});
@@ -57,13 +69,6 @@ try {
 	assert.ok(reviewHtml.includes('Translated email'));
 	assert.ok(reviewHtml.includes('Send Now'));
 
-	contactId = (
-		await post('contacts', {
-			name: 'Approval test',
-			email: `approval-${id}@example.invalid`,
-			locale: 'zz-CA'
-		})
-	).ids[0];
 	await post('send', { mode: 'local' }, 400);
 	// Seed multilingual results without making a paid AI call.
 	const versions = await sql`insert into versions (campaign_id,locale,subject,body) values
@@ -108,7 +113,7 @@ try {
 	await post('approve-version', { version_id: edited.id, approved: true });
 	await post('edit-version', { ...manualEdit, version_id: edited.id });
 	assert.ok((await sql`select approved_at from versions where id=${edited.id}`)[0].approved_at);
-	await post('save', { ...draft, body: 'Changed draft', locales: ['zz'] });
+	await post('save', { ...draft, body: 'Changed draft', audience_id: audiences[0] });
 	assert.equal((await sql`select id from versions where campaign_id=${id}`).length, 0);
 	await post('edit-version', { ...manualEdit, version_id: edited.id }, 409);
 	await post('approve-version', approval, 409);
@@ -120,9 +125,9 @@ try {
 	const [cached] = await sql`select * from versions where campaign_id=${id}`;
 	assert.equal(cached.id, first.id);
 	assert.ok(cached.approved_at);
-	await post('save', { ...draft, body: 'Changed draft', locales: ['zz'] });
+	await post('save', { ...draft, body: 'Changed draft', audience_id: audiences[0] });
 	assert.equal((await sql`select id from versions where campaign_id=${id}`)[0].id, first.id);
-	await post('save', { ...draft, body: 'Changed draft again', locales: ['zz'] });
+	await post('save', { ...draft, body: 'Changed draft again', audience_id: audiences[0] });
 	await post('approve-version', { version_id: first.id, approved: true }, 409);
 	await post('translate', {});
 	await post('send', { mode: 'local' }, 400);
@@ -130,7 +135,7 @@ try {
 	assert.equal(replacement.approved_at, null);
 	await post('approve-version', { version_id: replacement.id, approved: true });
 	// Adding audiences preserves approved content and creates only missing translations.
-	await post('save', { ...draft, body: 'Changed draft again', locales: ['zz', 'zy'] });
+	await post('save', { ...draft, body: 'Changed draft again', audience_id: audiences[1] });
 	assert.equal(
 		(await sql`select id from versions where campaign_id=${id} and locale='zz'`)[0].id,
 		replacement.id
@@ -171,7 +176,7 @@ try {
 	});
 	assert.equal(calls, 1);
 	// Errors persist; retry only the failed locale, keeping other approvals intact.
-	await post('save', { ...draft, body: 'Changed draft again', locales: ['zz', 'zy', 'zx'] });
+	await post('save', { ...draft, body: 'Changed draft again', audience_id: audiences[2] });
 	await prepareTranslation(id, 'zx', false, async () => {
 		throw new Error('Test provider failure');
 	});
@@ -208,7 +213,7 @@ try {
 		'ready'
 	);
 	// An edit during generation discards the old result, even when it finishes later.
-	await post('save', { ...draft, body: 'Changed draft again', locales: ['zz', 'zy', 'zx', 'zv'] });
+	await post('save', { ...draft, body: 'Changed draft again', audience_id: audiences[3] });
 	let releaseStale!: () => void;
 	let startedStale!: () => void;
 	const staleStarted = new Promise<void>((resolve) => {
@@ -223,13 +228,18 @@ try {
 		return { subject: 'Stale', body: 'Stale body' };
 	});
 	await staleStarted;
-	await post('save', { ...draft, body: 'Final content', locales: ['zz'] });
+	await post('save', { ...draft, body: 'Final content', audience_id: audiences[0] });
 	releaseStale();
 	await stale;
 	assert.equal((await sql`select id from versions where campaign_id=${id}`).length, 0);
 	await post('translate', {});
 	const [finalVersion] = await sql`select * from versions where campaign_id=${id}`;
 	await post('approve-version', { version_id: finalVersion.id, approved: true });
+	// Newly eligible languages need approval before anyone is queued.
+	await sql`update contacts set usage='0'::jsonb where plan=${id} and locale='zy'`;
+	await post('send', {}, 409);
+	assert.equal((await sql`select id from deliveries where campaign_id=${id}`).length, 0);
+	await sql`update contacts set usage=null where plan=${id} and locale='zy'`;
 	// A client cannot override development's simulated delivery mode.
 	assert.equal((await post('send', { mode: 'ses' })).count, 1);
 	const [delivery] = await sql`select * from deliveries where campaign_id=${id}`;
@@ -247,7 +257,8 @@ try {
 		await sql`delete from deliveries where campaign_id=${id}`;
 		await sql`delete from campaigns where id=${id}`;
 	}
-	if (contactId) await sql`delete from contacts where id=${contactId}`;
+	await sql`delete from contacts where plan=${id}`;
+	await sql`delete from audiences where plan=${id}`;
 	if (cookie)
 		await fetch(origin + '/logout', {
 			method: 'POST',

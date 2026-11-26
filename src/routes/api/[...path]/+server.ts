@@ -1,3 +1,4 @@
+import { audienceMatch } from '#lib/server/audiences.js';
 import { updateContact } from '#lib/server/contacts.js';
 import {
 	validationFields,
@@ -121,14 +122,24 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				typeof input.subject !== 'string' ||
 				typeof input.body !== 'string' ||
 				input.body.length > 100000 ||
-				!Array.isArray(input.locales) ||
-				!input.locales.every(validLocale) ||
+				(input.audience_id !== null &&
+					(typeof input.audience_id !== 'string' ||
+						!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(input.audience_id))) ||
 				!validLocale(input.source_locale)
 			)
-				error(400, 'Provide a subject, body, source language and audience locales.');
+				error(400, 'Provide a subject, body, source language and a saved audience selection.');
 			await sql.begin(async (tx) => {
 				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
+				const locales: string[] = [];
+				if (input.audience_id) {
+					const [audience] =
+						await tx`select id from audiences where id=${input.audience_id} for share`;
+					if (!audience) error(400, 'Choose an existing audience.');
+					const rows =
+						await tx`select distinct c.locale from audiences a join contacts c on ${audienceMatch} where a.id=${audience.id} order by c.locale`;
+					locales.push(...rows.map((row) => row.locale));
+				}
 				const parseDate = (value: unknown) => {
 					if (value === null || value === '') return null;
 					if (
@@ -142,7 +153,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				const scheduledAt =
 					input.scheduled_at === undefined ? locked.scheduled_at : parseDate(input.scheduled_at);
 				await tx`update campaigns set scheduled_at=${scheduledAt} where id=${input.id}`;
-				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},locales=${audienceLocales(input.locales)},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
+				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},audience_id=${input.audience_id},locales=${locales},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
 				if (
 					locked.subject !== input.subject.trim().slice(0, 500) ||
 					locked.body !== input.body ||
@@ -281,8 +292,13 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				)
 					error(400, 'Review and approve every language preview before sending.');
 				const contacts =
-					await tx`select * from contacts where not unsubscribed and not suppressed and locale=any(${locked.locales})`;
+					await tx`select c.* from audiences a join contacts c on ${audienceMatch} where a.id=${locked.audience_id}`;
 				if (!contacts.length) error(400, 'There are no subscribed contacts in this audience.');
+				if (contacts.some((c) => !locked.locales.includes(c.locale)))
+					error(
+						409,
+						'The audience now includes another language. Return to the draft and review the new preview.'
+					);
 				for (const c of contacts) {
 					const v = versions.find((v) => v.locale === c.locale)!;
 					await tx`insert into deliveries (campaign_id,contact_id,email,name,locale,subject,body,token,mode) values (${input.id},${c.id},${c.email},${c.name},${c.locale},${v.subject},${v.body},${token()},${mode})`;

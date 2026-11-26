@@ -62,7 +62,6 @@
 				});
 		}
 	});
-	let audience = $state<string[]>(initialCampaign?.locales || []);
 	let sourceLocale = $state(initialCampaign?.source_locale || 'en');
 	let showAudience = $state(false);
 	let showSpend = $state(false);
@@ -140,31 +139,9 @@
 	const deliverySummary = $derived(
 		summarizeDeliveries(data.deliverySummaries.filter((d) => d.campaign_id === campaign?.id))
 	);
-	const eligible = $derived(
-		data.contacts.filter((c) => !c.unsubscribed && !c.suppressed && audience.includes(c.locale))
-	);
-	const locales = $derived([
-		...new Set(['en', 'es', ...data.contacts.map((c) => String(c.locale)), ...audience])
-	]);
-	const audienceLocales = $derived(
-		[...new Set<string>(data.contacts.map((c) => String(c.locale)))].sort(
-			(a, b) => language(a).localeCompare(language(b), 'en') || a.localeCompare(b)
-		)
-	);
-	const selectedAudienceCount = $derived(
-		audienceLocales.filter((locale) => audience.includes(locale)).length
-	);
-	const allAudiencesSelected = $derived(
-		audienceLocales.length > 0 && selectedAudienceCount === audienceLocales.length
-	);
-	const localeCounts = $derived.by(() => {
-		const counts: Record<string, number> = {};
-		for (const contact of data.contacts) {
-			if (!contact.unsubscribed && !contact.suppressed)
-				counts[contact.locale] = (counts[contact.locale] || 0) + 1;
-		}
-		return counts;
-	});
+	let audienceId = $derived<string>(campaign?.audience_id || '');
+	const selectedAudience = $derived(data.audiences.find((a) => a.id === audienceId));
+	const recipientCount = $derived(Number(selectedAudience?.recipients || 0));
 	const dirty = $derived(
 		section === 'campaign' &&
 			campaign?.status === 'draft' &&
@@ -172,7 +149,7 @@
 				subject !== campaign.subject ||
 				body !== campaign.body ||
 				sourceLocale !== campaign.source_locale ||
-				JSON.stringify(audience) !== JSON.stringify(campaign.locales))
+				audienceId !== (campaign.audience_id || ''))
 	);
 	const language = (locale: string) => {
 		try {
@@ -191,7 +168,6 @@
 			scheduledAt = localDateTime(campaign.scheduled_at);
 			subject = campaign.subject;
 			body = campaign.body;
-			audience = campaign.locales.filter((locale: string) => audienceLocales.includes(locale));
 			sourceLocale = campaign.source_locale;
 		}
 	});
@@ -257,13 +233,13 @@
 			busy = '';
 		}
 	}
-	async function persist() {
-		if (!campaign || !dirty) return;
+	async function persist(refreshAudience = false) {
+		if (!campaign || (!dirty && !refreshAudience)) return;
 		await api('save', {
 			id: campaign.id,
 			subject,
 			body,
-			locales: audience,
+			audience_id: audienceId || null,
 			source_locale: sourceLocale,
 			scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
 		});
@@ -311,7 +287,7 @@
 	async function review() {
 		await run('review', async () => {
 			if (!campaign) return;
-			if (dirty) await persist();
+			await persist(true);
 			await navigateAfterMutation(`/campaigns/${campaign.id}/review`);
 		});
 	}
@@ -451,7 +427,7 @@
 					</button><button
 						class="primary"
 						onclick={review}
-						disabled={!!busy || !subject.trim() || !body.trim() || !eligible.length}
+						disabled={!!busy || !subject.trim() || !body.trim() || !recipientCount}
 					>
 						<Icon name="send" size={16} />{busy === 'review' ? 'Opening…' : 'Review & send'}
 					</button>{:else}<button class="secondary" onclick={() => invalidateAll()}>
@@ -529,8 +505,8 @@
 						</div>{/if}
 					<div class="editor-footer">
 						<span>
-							<Icon name="users" size={14} />{eligible.length.toLocaleString()} recipients · {selectedAudienceCount}
-							locales
+							<Icon name="users" size={14} />{recipientCount.toLocaleString()} recipients · {selectedAudience?.name ||
+								'Choose an audience'}
 						</span>
 						<span>{body.trim() ? body.trim().split(/\s+/).length : 0} words</span>
 					</div>
@@ -1202,37 +1178,19 @@
 				<Icon name="close" />
 			</button>
 			<h2>Choose your audience</h2>
-			<p>
-				Select the locales that should receive this campaign. Unsubscribed and suppressed contacts
-				are excluded.
-			</p>
-			<div class="audience-selection-actions">
-				<label class="audience-select-all">
-					<input
-						type="checkbox"
-						checked={allAudiencesSelected}
-						indeterminate={selectedAudienceCount > 0 && !allAudiencesSelected}
-						disabled={!audienceLocales.length}
-						onchange={(event) =>
-							(audience = event.currentTarget.checked ? [...audienceLocales] : [])}
-					/> Select all
-				</label>
-				<span>{selectedAudienceCount} of {audienceLocales.length} locales selected</span>
-			</div>
-			<div class="audience-locale-list">
-				{#each audienceLocales as locale (locale)}
-					<label class="audience-locale-row">
-						<input type="checkbox" value={locale} bind:group={audience} />
-						<span><strong>{language(locale)}</strong><small>{locale}</small></span>
-						<span class="audience-recipient-count">
-							{(localeCounts[locale] || 0).toLocaleString()} contacts
-						</span>
-					</label>
-				{:else}<p class="audience-empty">Add contacts to see available audiences.</p>{/each}
-			</div>
+			<label>
+				Saved audience
+				<select bind:value={audienceId}>
+					<option value="">Choose an audience</option>
+					{#each data.audiences as item (item.id)}
+						<option value={item.id}>{item.name}</option>
+					{/each}
+				</select>
+			</label>
+			<a href="/audiences">Manage audiences</a>
 			<div class="audience-picker-footer">
 				<span aria-live="polite">
-					{eligible.length.toLocaleString()} eligible recipients
+					{recipientCount.toLocaleString()} eligible recipients
 				</span><button class="primary" onclick={() => (showAudience = false)}>Done</button>
 			</div>
 		</div>

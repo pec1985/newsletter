@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { sql } from '../src/lib/server/db';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
-const origin = 'http://127.0.0.1:5173';
+const origin = process.env.SMOKE_ORIGIN || 'http://127.0.0.1:5173';
 let id = '';
 let contactId = '';
 let cookie = '';
@@ -43,7 +43,8 @@ try {
 		subject: 'Scheduled test',
 		body: 'Approved body',
 		source_locale: 'zx',
-		locales: ['zx']
+		audience_id: (await sql`insert into audiences(name,plan) values (${id},${id}) returning id`)[0]
+			.id
 	};
 	const scheduled_at = new Date(Date.now() + 7200000).toISOString();
 	await post('save', { ...draft, scheduled_at });
@@ -52,7 +53,8 @@ try {
 		await post('contacts', {
 			name: 'Schedule test',
 			email: `schedule-${id}@example.invalid`,
-			locale: 'zx'
+			locale: 'zx',
+			plan: id
 		})
 	).ids[0];
 	await post('send', {}, 400);
@@ -112,6 +114,7 @@ try {
 		await sql`delete from campaigns where id=${id}`;
 	}
 	if (contactId) await sql`delete from contacts where id=${contactId}`;
+	await sql`delete from audiences where name=${id}`;
 	if (cookie)
 		await fetch(origin + '/logout', {
 			method: 'POST',

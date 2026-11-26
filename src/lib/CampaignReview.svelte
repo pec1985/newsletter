@@ -28,11 +28,17 @@
 	const canApproveAll = $derived(
 		editable && readyVersions.length === locales.length && approvedCount < locales.length
 	);
-	const recipients = $derived(
-		data.contacts.filter((c) => !c.unsubscribed && !c.suppressed && locales.includes(c.locale))
+	const audience = $derived(data.audiences.find((a) => a.id === campaign.audience_id));
+	const recipientCount = $derived(Number(audience?.recipients || 0));
+	const needsReview = $derived(
+		audience?.locales.some((locale: string) => !locales.includes(locale))
 	);
 	const canSend = $derived(
-		editable && locales.length > 0 && approvedCount === locales.length && recipients.length > 0
+		editable &&
+			locales.length > 0 &&
+			approvedCount === locales.length &&
+			recipientCount > 0 &&
+			!needsReview
 	);
 	let busy = $state('');
 	let problem = $state('');
@@ -377,11 +383,17 @@
 					{/if}
 				{:else}<div class="empty-preview">
 						<h2>No audience selected</h2>
-						<p>Choose audience languages in your draft to prepare previews.</p>
+						<p>
+							Choose a saved audience with eligible recipients in your draft to prepare previews.
+						</p>
 						<a class="secondary" href={`/campaigns/${campaignId}`}>Back to draft</a>
 					</div>{/if}
 				<footer class="review-footer">
-					<span>{recipients.length} eligible recipients</span><span>
+					{#if needsReview}<a href={`/campaigns/${campaignId}`}>
+							Return to the draft to review newly matched languages.
+						</a>{/if}<span>
+						{audience?.name || 'Choose an audience'} · {recipientCount} eligible recipients
+					</span><span>
 						{canSend
 							? 'All languages approved. Ready to send.'
 							: 'Approve every language before sending.'}
