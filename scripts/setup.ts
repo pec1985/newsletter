@@ -1,3 +1,4 @@
+import { migrateAudiences } from '../src/lib/server/audience-schema';
 import { migrateUnsubscribeReasons } from '../src/lib/server/unsubscribe-schema';
 import { migrateEmailLocales } from '../src/lib/server/email-locale-migration';
 import { migrateApiKeys } from '../src/lib/server/api-key-schema';
@@ -36,6 +37,7 @@ await migrateApiKeys();
 await migrateEmailLocales();
 await migrateAiUsage();
 await migrateKnowledge();
+await migrateAudiences();
 await sql`insert into users (username,password_hash) select ${username},${hashPassword(password)} where not exists (select 1 from users) on conflict(username) do nothing`;
 if (production) {
 	await sql`insert into settings (id,value) values (1,'{}') on conflict(id) do nothing`;
@@ -58,7 +60,7 @@ if (!count.n) {
 }
 const [campaigns] = await sql`select count(*)::int as n from campaigns`;
 if (!campaigns.n) {
-	await sql`insert into campaigns (title,subject,body,locales,messages) values ('A little less busywork','A little less busywork. A little more flow.',${'Hi there,\n\nWe’ve been working on something small that makes a big difference: a simpler way to get through your day.\n\nOur latest update brings everything you need into one place, so you can spend less time switching tabs and more time on the work you love.\n\n**Here’s what’s new**\n\n• A calmer, more focused workspace\n• The details you need, right where you need them\n• A few thoughtful improvements, inspired by your feedback\n\n[Take a look at what’s new](https://example.com)\n\nWe’d love to hear what you think. Just hit reply.'},'{en,es}',${sql.json([{ role: 'assistant', content: 'What would you like to share with your audience? Tell me about the update, who it’s for, and what you’d like them to do next.' }])})`;
+	await sql`insert into campaigns (title,subject,body,messages) values ('A little less busywork','A little less busywork. A little more flow.',${'Hi there,\n\nWe’ve been working on something small that makes a big difference: a simpler way to get through your day.\n\nOur latest update brings everything you need into one place, so you can spend less time switching tabs and more time on the work you love.\n\n**Here’s what’s new**\n\n• A calmer, more focused workspace\n• The details you need, right where you need them\n• A few thoughtful improvements, inspired by your feedback\n\n[Take a look at what’s new](https://example.com)\n\nWe’d love to hear what you think. Just hit reply.'},${sql.json([{ role: 'assistant', content: 'What would you like to share with your audience? Tell me about the update, who it’s for, and what you’d like them to do next.' }])})`;
 	await sql`insert into campaigns (title,subject,body) values ('A warm welcome','Good to have you here',${'Hi there,\n\nThanks for being here. We’re excited to share what we’re building with you.'})`;
 }
 console.log('Database ready. Local test login: admin / admin.');

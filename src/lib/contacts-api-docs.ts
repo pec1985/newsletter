@@ -1,6 +1,14 @@
 const id = '8cf9b24a-558c-41ba-86e8-e404749392e2';
 const secondId = 'e24ea578-6740-4d59-9381-dd99c6125c17';
-const input = { name: 'Alex', email: 'alex@example.com', locale: 'en', subscribed: true };
+const input = {
+	name: 'Alex',
+	email: 'alex@example.com',
+	locale: 'en',
+	subscribed: true,
+	plan: 'premium',
+	usage: 42,
+	last_used_at: '2026-11-24T09:00:00Z'
+};
 const contact = {
 	id,
 	...input,
@@ -18,7 +26,7 @@ export const endpoints = [
 		method: 'POST',
 		path: '/api/contacts',
 		title: 'Create or import contacts',
-		note: 'Send one object or a JSON array of up to 20,000 contacts (16 MB maximum). Name, email and locale are required. Set subscribed to include the initial email preference. Existing unsubscribes are preserved; matching emails update name and locale.',
+		note: 'Send one object or a JSON array of up to 20,000 contacts (16 MB maximum). Name, email and locale are required. Set subscribed to include the initial email preference. Existing unsubscribes are preserved; matching emails update name, locale and supplied audience fields. Optional plan (text), usage (number or text), and last_used_at (ISO timestamp with timezone) accept null to clear.',
 		examples: [
 			{
 				title: 'Single contact',
@@ -93,7 +101,7 @@ export const endpoints = [
 		method: 'PATCH',
 		path: '/api/contacts/{id}',
 		title: 'Update a contact',
-		note: 'Send any subset of name, email, locale and subscribed. Omitted fields stay unchanged. Explicitly setting subscribed to true resubscribes a contact, but never clears suppression.',
+		note: 'Send any subset of name, email, locale, subscribed, plan, usage and last_used_at. Omitted fields stay unchanged. Explicitly setting subscribed to true resubscribes a contact, but never clears suppression.',
 		examples: [
 			{
 				title: 'Change locale and unsubscribe',
@@ -154,6 +162,9 @@ Replace YOUR_API_KEY with your secret key; never expose it in client-side code. 
 | name | string, up to 200 characters | Required on create; optional on PATCH |
 | email | string, up to 254 characters | Required on create; trimmed and lowercased; unique in the database |
 | locale | string, up to 40 characters | Required on create; stored and returned as the first two lowercase letters (e.g. en-US becomes en) |
+| plan | string or null | Product subscription plan |
+| usage | number, string or null | Lifetime count or usage label |
+| last_used_at | ISO timestamp with timezone or null | Most recent product activity |
 | subscribed | boolean | Email preference; optional on create; defaults to true for new contacts |
 | suppressed | boolean, read-only | Internal sending block; cannot be changed through this API |
 | can_email | boolean, read-only | True only if subscribed and not suppressed |

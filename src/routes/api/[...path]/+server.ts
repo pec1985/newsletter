@@ -1,3 +1,9 @@
+import {
+	readAudienceSelection,
+	loadSelectionSummary,
+	selectionMatch,
+	type Audience
+} from '#lib/server/audiences.js';
 import { updateContact } from '#lib/server/contacts.js';
 import {
 	validationFields,
@@ -116,19 +122,26 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			return json({ ok: true });
 		}
 		if (campaign.status !== 'draft') error(400, 'Sent campaigns are read-only.');
+		if (path === 'audience-preview') {
+			const selection = readAudienceSelection(input);
+			return json(await sql.begin(async (tx) => loadSelectionSummary(tx, selection)));
+		}
 		if (path === 'save') {
 			if (
 				typeof input.subject !== 'string' ||
 				typeof input.body !== 'string' ||
 				input.body.length > 100000 ||
-				!Array.isArray(input.locales) ||
-				!input.locales.every(validLocale) ||
 				!validLocale(input.source_locale)
 			)
-				error(400, 'Provide a subject, body, source language and audience locales.');
+				error(400, 'Provide a subject, body, source language and a saved audience selection.');
 			await sql.begin(async (tx) => {
 				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
+				const selection = readAudienceSelection(input);
+				const { locales } = await loadSelectionSummary(tx, selection);
+				await tx`delete from campaign_audiences where campaign_id=${input.id}`;
+				if (selection.ids.length)
+					await tx`insert into campaign_audiences(campaign_id,audience_id) select ${input.id},unnest(${selection.ids}::uuid[])`;
 				const parseDate = (value: unknown) => {
 					if (value === null || value === '') return null;
 					if (
@@ -142,7 +155,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				const scheduledAt =
 					input.scheduled_at === undefined ? locked.scheduled_at : parseDate(input.scheduled_at);
 				await tx`update campaigns set scheduled_at=${scheduledAt} where id=${input.id}`;
-				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},locales=${audienceLocales(input.locales)},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
+				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},all_users=${selection.all},audience_id=${selection.ids.length === 1 ? selection.ids[0] : null},locales=${locales},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
 				if (
 					locked.subject !== input.subject.trim().slice(0, 500) ||
 					locked.body !== input.body ||
@@ -280,9 +293,17 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 					)
 				)
 					error(400, 'Review and approve every language preview before sending.');
+				const audiences = await tx<
+					Audience[]
+				>`select a.* from audiences a join campaign_audiences ca on ca.audience_id=a.id where ca.campaign_id=${locked.id} order by a.id for share of a`;
 				const contacts =
-					await tx`select * from contacts where not unsubscribed and not suppressed and locale=any(${locked.locales})`;
+					await tx`select c.* from contacts c where ${selectionMatch(locked.all_users, audiences)}`;
 				if (!contacts.length) error(400, 'There are no subscribed contacts in this audience.');
+				if (contacts.some((c) => !locked.locales.includes(c.locale)))
+					error(
+						409,
+						'The audience now includes another language. Return to the draft and review the new preview.'
+					);
 				for (const c of contacts) {
 					const v = versions.find((v) => v.locale === c.locale)!;
 					await tx`insert into deliveries (campaign_id,contact_id,email,name,locale,subject,body,token,mode) values (${input.id},${c.id},${c.email},${c.name},${c.locale},${v.subject},${v.body},${token()},${mode})`;

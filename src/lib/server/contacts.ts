@@ -5,7 +5,7 @@ import { sql } from './db';
 
 export const maxContacts = 20000;
 const maxBytes = 16 * 1024 * 1024;
-export const contactColumns = sql`id,name,email,locale,not unsubscribed as subscribed,suppressed,
+export const contactColumns = sql`id,name,email,locale,plan,usage,last_used_at,not unsubscribed as subscribed,suppressed,
  (not unsubscribed and not suppressed) as can_email,unsubscribed_at,created_at`;
 export const contactJson = (data: unknown, status = 200) =>
 	json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -65,7 +65,15 @@ export function contactId(value: string) {
 		error(400, 'Provide a valid contact ID.');
 	return value;
 }
-export type ContactInput = { name: string; email: string; locale: string; subscribed?: boolean };
+export type ContactInput = {
+	name: string;
+	email: string;
+	locale: string;
+	subscribed?: boolean;
+	plan?: string | null;
+	usage?: number | string | null;
+	last_used_at?: string | null;
+};
 export function parseContact(input: unknown, partial: false): ContactInput;
 export function parseContact(input: unknown, partial: true): Partial<ContactInput>;
 export function parseContact(input: unknown, partial: boolean): Partial<ContactInput> {
@@ -84,6 +92,35 @@ export function parseContact(input: unknown, partial: boolean): Partial<ContactI
 			error(400, 'Provide a valid locale, such as en or es.');
 		result.locale = emailLocale(row.locale);
 	}
+	if (row.plan !== undefined) {
+		if (
+			row.plan !== null &&
+			(typeof row.plan !== 'string' || !row.plan.trim() || row.plan.length > 200)
+		)
+			error(400, 'Plan must be a nonempty string of up to 200 characters or null.');
+		result.plan = row.plan === null ? null : row.plan.trim();
+	}
+	if (row.usage !== undefined) {
+		const value = row.usage;
+		if (
+			value !== null &&
+			!(typeof value === 'string' && value.trim() && value.length <= 200) &&
+			!(typeof value === 'number' && Number.isFinite(value))
+		)
+			error(400, 'Usage must be a number, a nonempty label of up to 200 characters, or null.');
+		result.usage = typeof value === 'string' ? value.trim() : (value as number | null);
+	}
+	if (row.last_used_at !== undefined) {
+		const value = row.last_used_at;
+		if (
+			value !== null &&
+			(typeof value !== 'string' ||
+				!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
+				!Number.isFinite(Date.parse(value)))
+		)
+			error(400, 'Provide last_used_at as an ISO timestamp with timezone or null.');
+		result.last_used_at = value === null ? null : new Date(value).toISOString();
+	}
 	for (const field of ['subscribed', 'unsubscribed']) {
 		if (row[field] !== undefined && typeof row[field] !== 'boolean')
 			error(400, `${field} must be a boolean.`);
@@ -99,7 +136,7 @@ export function parseContact(input: unknown, partial: boolean): Partial<ContactI
 	if (Object.hasOwn(row, 'suppressed'))
 		error(400, 'Suppression cannot be changed through the contacts API.');
 	if (partial && !Object.keys(result).length)
-		error(400, 'Provide a name, email, locale, or subscribed field to update.');
+		error(400, 'Provide at least one supported contact field to update.');
 	return result;
 }
 
@@ -121,6 +158,7 @@ export async function upsertContacts(input: unknown) {
 		const previous = unique.get(contact.email);
 		// Last name/locale wins, but an opt-out anywhere in the request is preserved.
 		unique.set(contact.email, {
+			...previous,
 			...contact,
 			subscribed: previous?.subscribed === false ? false : contact.subscribed
 		});
@@ -144,6 +182,18 @@ export async function upsertContacts(input: unknown) {
      unsubscribe_reason=coalesce(contacts.unsubscribe_reason,excluded.unsubscribe_reason),
      unsubscribed_at=case when excluded.unsubscribed then coalesce(contacts.unsubscribed_at,now()) else contacts.unsubscribed_at end
     returning id,email`;
+			const profiles = ordered
+				.slice(offset, offset + 1000)
+				.filter(
+					(c) => c.plan !== undefined || c.usage !== undefined || c.last_used_at !== undefined
+				);
+			if (profiles.length) {
+				await tx`update contacts c set
+					plan=case when p ? 'plan' then p->>'plan' else c.plan end,
+					usage=case when p ? 'usage' then nullif(p->'usage','null'::jsonb) else c.usage end,
+					last_used_at=case when p ? 'last_used_at' then (p->>'last_used_at')::timestamptz else c.last_used_at end
+					from jsonb_array_elements(${tx.json(profiles)}::jsonb) p where c.email=p->>'email'`;
+			}
 			for (const row of saved) byEmail.set(row.email, row.id);
 		}
 		return contacts.map((c) => byEmail.get(c.email)!);
@@ -161,6 +211,9 @@ export async function updateContact(id: string, input: unknown) {
 			const subscribed = patch.subscribed ?? !existing.unsubscribed;
 			const [contact] =
 				await tx`update contacts set name=${patch.name ?? existing.name},email=${patch.email ?? existing.email},locale=${patch.locale ?? existing.locale},
+    plan=${patch.plan === undefined ? existing.plan : patch.plan},
+    usage=case when ${patch.usage !== undefined} then ${patch.usage == null ? null : tx.json(patch.usage)}::jsonb else usage end,
+    last_used_at=${patch.last_used_at === undefined ? existing.last_used_at : patch.last_used_at},
     unsubscribed=${!subscribed},unsubscribe_reason=${subscribed ? null : (existing.unsubscribe_reason ?? 'other')},unsubscribed_at=${subscribed ? null : existing.unsubscribed_at || new Date()}
     where id=${id} returning ${contactColumns}`;
 			return contact;

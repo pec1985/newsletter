@@ -42,10 +42,12 @@
 	const pageLabel = $derived(
 		campaignSection
 			? 'Campaigns'
-			: section === 'contacts'
-				? 'Contacts'
-				: [...workspaceLinks, ...settingsLinks].find((link) => link.id === settingsTab)?.label ||
-					'Settings'
+			: section === 'audiences'
+				? 'Audiences'
+				: section === 'contacts'
+					? 'Contacts'
+					: [...workspaceLinks, ...settingsLinks].find((link) => link.id === settingsTab)?.label ||
+						'Settings'
 	);
 </script>
 
@@ -74,6 +76,15 @@
 				aria-current={section === 'contacts' ? 'page' : undefined}
 			>
 				<Icon name="users" size={19} /><span class="nav-text">Contacts</span>
+			</a>
+			<a
+				href="/audiences"
+				aria-label="Audiences"
+				title="Audiences"
+				class:active={section === 'audiences'}
+				aria-current={section === 'audiences' ? 'page' : undefined}
+			>
+				<Icon name="users" size={19} /><span class="nav-text">Audiences</span>
 			</a>
 			<div class="nav-group-label">Content</div>
 			{#each workspaceLinks as link (link.id)}

@@ -26,6 +26,8 @@ Create a named key in **Settings → API keys** and send `Authorization: Bearer 
 
 A single object is accepted too. Name, email and locale are required. Supply `subscribed` to carry the initial email preference from your platform. For compatibility, omitting it subscribes a **new** contact; existing unsubscribes are always preserved. The older `unsubscribed` field is still accepted as the inverse, but contradictory flags are rejected. Suppression is managed internally and cannot be overridden through this API.
 
+Optional audience fields are `plan` (text), `usage` (a JSON number or a text label), and `last_used_at` (ISO timestamp with timezone). POST and PATCH preserve omitted fields and clear fields explicitly set to null. Send numeric zero for a known unused account. A missing value stays unknown.
+
 Emails are trimmed and lowercased before matching the database's unique email constraint. Upserts update name and locale; `subscribed: false` opts out, while `subscribed: true` never reverses an existing opt-out. For duplicate emails in one request, the last name/locale wins and any opt-out is preserved. The response contains `ids` in input order (duplicates share an ID), `processed` (input row count), and `upserted` (unique email count).
 
 Imports are synchronous, performed in batches of 1,000 inside one transaction. The entire payload is validated before writing: an invalid contact returns 400 with its 1-based input position and no contacts from the request are saved. Empty arrays and more than 20,000 rows are rejected. Requests are limited to 16 MB (413); configure the deployment/reverse-proxy body limit accordingly. There is no background job or progress polling. CSV files must be converted to the JSON shape above before submission.
@@ -46,11 +48,11 @@ if (response.status === 404) {
 }
 ```
 
-Read responses include `id`, `name`, `email`, `locale`, `subscribed`, `suppressed`, `can_email`, `unsubscribed_at`, and `created_at`. `can_email` is true only when the contact is subscribed and not suppressed. It reflects stored contact permission, not sender/provider configuration or deliverability. This newsletter app is the source of truth for subscription status; a later import cannot silently undo a newsletter unsubscribe.
+Read responses include `id`, `name`, `email`, `locale`, `plan`, `usage`, `last_used_at`, `subscribed`, `suppressed`, `can_email`, `unsubscribed_at`, and `created_at`. `can_email` is true only when the contact is subscribed and not suppressed. It reflects stored contact permission, not sender/provider configuration or deliverability. This newsletter app is the source of truth for subscription status; a later import cannot silently undo a newsletter unsubscribe.
 
 ## Update
 
-Send any subset of name, email, locale, and subscribed:
+Send any subset of name, email, locale, subscribed, plan, usage, and last_used_at:
 
 ```http
 PATCH /api/contacts/CONTACT_ID

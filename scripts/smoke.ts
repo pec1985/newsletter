@@ -52,19 +52,72 @@ try {
 	const contact = await post('contacts', {
 		name: 'Smoke Test',
 		email: 'smoke-test@example.invalid',
-		locale: 'zz'
+		locale: 'zz',
+		plan: 'smoke-test',
+		usage: 'frequent',
+		last_used_at: new Date().toISOString()
 	});
 	contactId = contact.ids[0];
 	const created = await post('campaigns', { title: 'Smoke test' });
 	id = created.id;
+	const [overlap] =
+		await sql`insert into audiences(name,plan) values (${id + '-overlap'},'smoke-test') returning id`;
+	const createdAudience = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({
+			name: id,
+			plan: 'smoke-test',
+			usage_operator: '=',
+			usage_value: 'frequent',
+			activity_operator: '>=',
+			activity_value: '7'
+		}),
+		redirect: 'manual'
+	});
+	assert.equal(createdAudience.status, 303);
+	const [audience] = await sql`select id from audiences where name=${id}`;
+	// An enabled date control with only a placeholder should save as an omitted filter.
+	const editAudience = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({
+			id: audience.id,
+			name: id,
+			plan: 'smoke-test',
+			usage_operator: '=',
+			usage_value: 'frequent',
+			activity_operator: '<',
+			activity_value: ''
+		}),
+		redirect: 'manual'
+	});
+	assert.equal(editAudience.status, 303);
+	const [savedFilters] =
+		await sql`select usage_label, active_within_days,inactive_days from audiences where id=${audience.id}`;
+	assert.equal(savedFilters.usage_label, 'frequent');
+	assert.equal(savedFilters.active_within_days, null);
+	assert.equal(savedFilters.inactive_days, null);
+	const builder = await fetch(origin + '/audiences?edit=' + audience.id, {
+		headers: { Cookie: cookie }
+	});
+	assert.equal(builder.status, 200);
+	assert.match(await builder.text(), /Edit audience/);
 	await post('save', {
 		id,
 		title: 'Smoke test',
 		subject: 'A test message',
 		body: 'Hello, [friend](https://example.com).',
 		source_locale: 'zz',
-		locales: ['zz']
+		audience_ids: [audience.id, overlap.id],
+		all_users: false
 	});
+	const combined = await post('audience-preview', { id, audience_ids: [audience.id, overlap.id] });
+	assert.equal(combined.recipients, 1);
+	const all = await post('audience-preview', { id, all_users: true, audience_ids: [] });
+	const [allowed] =
+		await sql`select count(*)::int as n from contacts where not unsubscribed and not suppressed`;
+	assert.equal(all.recipients, allowed.n);
 	await post('translate', { id });
 	const upload = new FormData();
 	upload.set(
@@ -181,6 +234,21 @@ try {
 	assert.equal((await postOneClick(multipart)).status, 204);
 	const [retry] = await sql`select unsubscribed_at from contacts where id=${contactId}`;
 	assert.deepEqual(retry.unsubscribed_at, optOut.unsubscribed_at);
+	const removed = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({ id: audience.id, intent: 'delete' }),
+		redirect: 'manual'
+	});
+	assert.equal(removed.status, 303);
+	assert.equal((await sql`select id from audiences where id=${audience.id}`).length, 0);
+	assert.deepEqual(
+		(await sql`select audience_id from campaign_audiences where campaign_id=${id}`).map(
+			(row) => row.audience_id
+		),
+		[overlap.id]
+	);
+	assert.equal((await sql`select id from deliveries where campaign_id=${id}`).length, 1);
 	const logout = await fetch(origin + '/logout', {
 		method: 'POST',
 		headers: { Origin: origin, Cookie: cookie },
@@ -197,6 +265,7 @@ try {
 		await sql`delete from campaigns where id=${id}`;
 	}
 	if (contactId) await sql`delete from contacts where id=${contactId}`;
+	await sql`delete from audiences where name in (${id},${id + '-overlap'})`;
 	if (mediaId) await sql`delete from media where id=${mediaId}`;
 	await sql.end();
 }

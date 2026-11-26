@@ -72,10 +72,26 @@ try {
 	assert.equal(lookup.contact.id, id);
 	assert.equal(lookup.contact.subscribed, false);
 	assert.equal(lookup.contact.can_email, false);
+	await call('', 'POST', {
+		...draft,
+		plan: 'premium',
+		usage: 0,
+		last_used_at: '2026-01-01T00:00:00Z'
+	});
+	assert.equal((await call('/' + id)).contact.usage, 0);
+	await call('/' + id, 'PATCH', { usage: 'frequent' });
+	assert.equal((await call('/' + id)).contact.usage, 'frequent');
+	await call('/' + id, 'PATCH', { usage: 42 });
+	assert.equal((await call('/' + id)).contact.usage, 42);
+	await call('/' + id, 'PATCH', { usage: false }, 400);
 	const duplicate = await call('', 'POST', { ...draft, name: 'Updated name', subscribed: true });
 	assert.equal(duplicate.ids[0], id);
 	lookup = await call('/' + id);
 	assert.equal(lookup.contact.name, 'Updated name');
+	assert.equal(lookup.contact.plan, 'premium');
+	assert.equal(lookup.contact.usage, 42);
+	await call('', 'POST', { ...draft, name: 'Updated name', usage: null });
+	assert.equal((await call('/' + id)).contact.usage, null);
 	assert.equal(lookup.contact.subscribed, false);
 	const updated = await call('/' + id, 'PATCH', { locale: 'es', subscribed: true });
 	assert.equal(updated.contact.can_email, true);
