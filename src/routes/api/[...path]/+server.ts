@@ -1,4 +1,4 @@
-import { audienceMatch } from '#lib/server/audiences.js';
+import { audienceMatch, type Audience } from '#lib/server/audiences.js';
 import { updateContact } from '#lib/server/contacts.js';
 import {
 	validationFields,
@@ -133,11 +133,12 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
 				const locales: string[] = [];
 				if (input.audience_id) {
-					const [audience] =
-						await tx`select id from audiences where id=${input.audience_id} for share`;
+					const [audience] = await tx<
+						Audience[]
+					>`select * from audiences where id=${input.audience_id} for share`;
 					if (!audience) error(400, 'Choose an existing audience.');
 					const rows =
-						await tx`select distinct c.locale from audiences a join contacts c on ${audienceMatch} where a.id=${audience.id} order by c.locale`;
+						await tx`select distinct c.locale from contacts c where ${audienceMatch(audience)} order by c.locale`;
 					locales.push(...rows.map((row) => row.locale));
 				}
 				const parseDate = (value: unknown) => {
@@ -291,8 +292,11 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 					)
 				)
 					error(400, 'Review and approve every language preview before sending.');
-				const contacts =
-					await tx`select c.* from audiences a join contacts c on ${audienceMatch} where a.id=${locked.audience_id}`;
+				const [audience] = await tx<
+					Audience[]
+				>`select * from audiences where id=${locked.audience_id} for share`;
+				if (!audience) error(400, 'Choose a saved audience.');
+				const contacts = await tx`select c.* from contacts c where ${audienceMatch(audience)}`;
 				if (!contacts.length) error(400, 'There are no subscribed contacts in this audience.');
 				if (contacts.some((c) => !locked.locales.includes(c.locale)))
 					error(

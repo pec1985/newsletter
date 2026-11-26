@@ -39,14 +39,22 @@ export const actions: Actions = {
 		if (!usage.length || !activity.length) error(400, 'Reload the audience editor before saving.');
 		if (!name || name.length > 100)
 			return invalid('Give the audience a name of up to 100 characters.');
-		if ((plan?.length ?? 0) > 200) return invalid('Enter a plan of up to 200 characters.');
+		if (
+			!empty.plan_empty &&
+			(!plan || !(await sql`select 1 from contacts where plan=${plan} limit 1`).length)
+		)
+			return invalid('Choose an available plan or check Empty.');
+		if (!empty.usage_empty && usage.every((rule) => !rule.value))
+			return invalid('Enter usage or check Empty.');
+		if (!empty.activity_empty && activity.every((rule) => !rule.value))
+			return invalid('Enter last usage or check Empty.');
 		let filters;
 		try {
 			filters = parseFilters(usage, activity);
 		} catch (cause) {
 			return invalid(cause instanceof Error ? cause.message : 'Invalid audience filter.');
 		}
-		const values = { name, plan, ...filters, ...empty };
+		const values = { name, plan, ...filters };
 		try {
 			if (id) {
 				const rows =

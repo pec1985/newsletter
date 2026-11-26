@@ -15,18 +15,27 @@
 	const selected = $derived(data.audiences.find((a) => a.id === editorId));
 	const values = $derived(showError ? form?.values : selected);
 
-	let planEmpty = $derived(Boolean(values?.plan_empty));
-	let usageEmpty = $derived(Boolean(values?.usage_empty));
-	let activityEmpty = $derived(Boolean(values?.activity_empty));
 	const usage = $derived(showError && form ? form.values.usage : usageRows(selected));
 	const activity = $derived(showError && form ? form.values.activity : activityRows(selected));
 
+	function skippedFields() {
+		if (showError && form)
+			return {
+				plan: form.values.plan_empty,
+				usage: form.values.usage_empty,
+				activity: form.values.activity_empty
+			};
+		return {
+			plan: !selected?.plan,
+			usage: usage.every((rule) => !rule.value),
+			activity: activity.every((rule) => !rule.value)
+		};
+	}
+	let skipped = $derived(skippedFields());
 	function openEditor(id: string) {
 		showError = false;
 		editorId = id;
-		planEmpty = Boolean(selected?.plan_empty);
-		usageEmpty = Boolean(selected?.usage_empty);
-		activityEmpty = Boolean(selected?.activity_empty);
+		skipped = skippedFields();
 	}
 </script>
 
@@ -96,10 +105,7 @@
 						placeholder="Premium regulars"
 					/>
 				</label>
-				<p>
-					Leave a filter blank for any value. Check Empty to match contacts with no value for that
-					field.
-				</p>
+				<p>Check Empty to skip a filter.</p>
 				<div class="filters">
 					<div class="filter">
 						<label for="filter-plan">Plan</label>
@@ -109,13 +115,10 @@
 								class="plan-select"
 								id="filter-plan"
 								name="plan"
-								value={values?.plan ?? ''}
-								disabled={planEmpty}
+								value={values?.plan ?? data.plans[0]}
+								required
+								disabled={skipped.plan}
 							>
-								<option value="">Any plan</option>
-								{#if values?.plan && !data.plans.includes(values.plan)}<option value={values.plan}>
-										{values.plan}
-									</option>{/if}
 								{#each data.plans as plan (plan)}<option value={plan}>{plan}</option>{/each}
 							</select>
 							<span class="operator-chevron"><Icon name="down" size={12} /></span>
@@ -124,8 +127,9 @@
 							<input
 								type="checkbox"
 								name="plan_empty"
-								aria-label="Plan is empty"
-								bind:checked={planEmpty}
+								aria-label="Skip plan filter"
+								checked={skipped.plan}
+								onchange={(event) => (skipped = { ...skipped, plan: event.currentTarget.checked })}
 							/>Empty
 						</label>
 					</div>
@@ -135,7 +139,7 @@
 							<div class="operator">
 								<select
 									aria-label="Usage operator"
-									disabled={usageEmpty}
+									disabled={skipped.usage}
 									name="usage_operator"
 									value={rule.operator}
 								>
@@ -144,7 +148,7 @@
 							</div>
 							<input
 								id={'usage-' + i}
-								disabled={usageEmpty}
+								disabled={skipped.usage}
 								name="usage_value"
 								maxlength="402"
 								value={rule.value}
@@ -154,8 +158,10 @@
 									<input
 										type="checkbox"
 										name="usage_empty"
-										aria-label="Usage is empty"
-										bind:checked={usageEmpty}
+										aria-label="Skip usage filter"
+										checked={skipped.usage}
+										onchange={(event) =>
+											(skipped = { ...skipped, usage: event.currentTarget.checked })}
 									/>Empty
 								</label>{/if}
 						</div>
@@ -166,7 +172,7 @@
 							<div class="operator">
 								<select
 									aria-label="Last usage operator"
-									disabled={activityEmpty}
+									disabled={skipped.activity}
 									name="activity_operator"
 									value={rule.operator}
 								>
@@ -177,7 +183,7 @@
 								<input
 									id={'activity-' + i}
 									aria-label="Last usage in days ago"
-									disabled={activityEmpty}
+									disabled={skipped.activity}
 									name="activity_value"
 									type="number"
 									min="1"
@@ -190,8 +196,10 @@
 									<input
 										type="checkbox"
 										name="activity_empty"
-										aria-label="Last usage is empty"
-										bind:checked={activityEmpty}
+										aria-label="Skip last usage filter"
+										checked={skipped.activity}
+										onchange={(event) =>
+											(skipped = { ...skipped, activity: event.currentTarget.checked })}
 									/>Empty
 								</label>{/if}
 						</div>
