@@ -5,6 +5,7 @@
 		usageOperators,
 		activityOperators
 	} from '#lib/audience-filters.js';
+	import { Tooltip } from 'flowbite-svelte';
 	import { page } from '$app/state';
 	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -66,7 +67,20 @@
 					{#each data.audiences as audience (audience.id)}
 						<tr>
 							<td><strong>{audience.name}</strong></td>
-							<td class="query"><code>{audience.query}</code></td>
+							<td class="query">
+								<button class="query-preview" aria-describedby={'full-sql-' + audience.id}>
+									<code>{audience.filterSql || 'All eligible contacts'}</code>
+								</button>
+								<Tooltip
+									id={'full-sql-' + audience.id}
+									placement="bottom-start"
+									strategy="fixed"
+									arrow={false}
+									class="sql-popup"
+								>
+									<code>{audience.query}</code>
+								</Tooltip>
+							</td>
 							<td>
 								<div class="row-actions">
 									<button
@@ -266,7 +280,7 @@
 	.audience-page {
 		padding: clamp(1rem, 4vw, 3rem);
 		width: 100%;
-		margin: auto;
+		margin: 0;
 	}
 	header,
 	.actions {
@@ -290,8 +304,30 @@
 	td:first-child {
 		width: 24%;
 	}
-	.query {
+	.query-preview {
+		display: block;
+		max-width: 100%;
+		text-align: start;
 		white-space: pre-wrap;
+		padding: 0;
+	}
+	.query-preview:hover,
+	.query-preview:focus-visible {
+		color: var(--accent);
+	}
+	:global(.sql-popup) {
+		max-width: min(34rem, calc(100vw - 2rem));
+		padding: 0.75rem 1rem;
+		border-radius: 0.5rem;
+		background: #241c32;
+		color: white;
+		box-shadow: 0 4px 16px #1f172333;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		text-align: start;
+	}
+	.query {
+		white-space: normal;
 		overflow-wrap: anywhere;
 		line-height: 1.5;
 	}

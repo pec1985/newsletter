@@ -62,7 +62,11 @@ function previewQuery(a: Audience) {
 			return text + literal + parts[i + 1];
 		}, parts[0])
 	);
-	return 'SELECT c.* FROM contacts AS c\nWHERE ' + predicates.join('\n  AND ') + ';';
+	const [, ...audienceConditions] = predicates;
+	return {
+		query: 'SELECT c.* FROM contacts AS c\nWHERE ' + predicates.join('\n  AND ') + ';',
+		filterSql: audienceConditions.join('\nAND ')
+	};
 }
 
 export async function audienceSummaries() {
@@ -74,7 +78,7 @@ export async function audienceSummaries() {
 			>`select count(*)::int as recipients,
 			coalesce(array_agg(distinct c.locale order by c.locale), '{}'::text[]) as locales
 			from contacts c where ${audienceMatch(audience)}`;
-			return { ...audience, ...summary, query: previewQuery(audience) };
+			return { ...audience, ...summary, ...previewQuery(audience) };
 		})
 	);
 }
