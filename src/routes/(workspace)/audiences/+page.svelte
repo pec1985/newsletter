@@ -301,12 +301,20 @@
 	td {
 		vertical-align: top;
 	}
-	td:first-child {
-		width: 24%;
+	td:first-child,
+	td:last-child {
+		width: 1%;
+	}
+	td:first-child strong {
+		display: block;
+		width: max-content;
+		max-width: clamp(7rem, 18vw, 23rem);
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 	.query-preview {
 		display: block;
-		max-width: 100%;
+		width: 100%;
 		text-align: start;
 		white-space: pre-wrap;
 		padding: 0;
@@ -339,9 +347,6 @@
 	.row-actions {
 		display: flex;
 		gap: 0.35rem;
-	}
-	td:last-child {
-		width: 1%;
 	}
 	.icon-button {
 		display: grid;
@@ -380,10 +385,6 @@
 		}
 	}
 
-	td:first-child {
-		white-space: normal;
-		overflow-wrap: anywhere;
-	}
 	dialog.modal {
 		position: fixed;
 		margin: auto;
