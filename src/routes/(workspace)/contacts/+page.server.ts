@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ url, parent }) => {
 		: 1;
 	const offset = (page - 1) * pageSize;
 	const rows =
-		await sql`select id, name, email, locale, unsubscribed, suppressed, unsubscribe_reason
+		await sql`select id, name, email, locale, plan, usage, last_used_at, unsubscribed, suppressed, unsubscribe_reason
 		from contacts ${filter} order by name, id limit ${pageSize} offset ${offset}`;
 	return {
 		contactList: {

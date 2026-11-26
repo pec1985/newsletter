@@ -13,6 +13,8 @@
 	import CampaignStats from '#lib/CampaignStats.svelte';
 	import DeadlinePicker from '#lib/DeadlinePicker.svelte';
 	import ServiceValidation from '#lib/ServiceValidation.svelte';
+	import { Tooltip } from 'flowbite-svelte';
+	import { InfoCircleOutline } from 'flowbite-svelte-icons';
 	import ContactsApiDocs from '#lib/ContactsApiDocs.svelte';
 	import ApiKeysPanel from '#lib/ApiKeysPanel.svelte';
 	import { localDateTime, formatCampaignDate } from '#lib/campaign-dates.js';
@@ -813,6 +815,36 @@
 								<td>
 									<div class="contact-name">
 										<span class="avatar">{c.name.slice(0, 1)}</span><strong>{c.name}</strong>
+										<button
+											type="button"
+											class="contact-info"
+											aria-label={'Contact details for ' + c.name}
+											aria-describedby={'contact-details-' + c.id}
+										>
+											<InfoCircleOutline size="sm" aria-hidden="true" />
+										</button>
+										<Tooltip
+											id={'contact-details-' + c.id}
+											placement="right"
+											strategy="fixed"
+											role="tooltip"
+										>
+											<dl class="contact-details">
+												<dt>Plan</dt>
+												<dd>{c.plan ?? 'Not provided'}</dd>
+												<dt>Usage</dt>
+												<dd>{c.usage ?? 'Not provided'}</dd>
+												<dt>Last used</dt>
+												<dd>
+													{c.last_used_at
+														? new Date(c.last_used_at).toLocaleString('en', {
+																timeZone: 'UTC',
+																timeZoneName: 'short'
+															})
+														: 'Not provided'}
+												</dd>
+											</dl>
+										</Tooltip>
 									</div>
 								</td><td>{c.email}</td><td>
 									<span class="locale-tag">{c.locale.toUpperCase()}</span>
@@ -1345,6 +1377,25 @@
 {/if}
 
 <style>
+	.contact-info {
+		display: inline-grid;
+		place-items: center;
+		min-width: 1.5rem;
+		min-height: 1.5rem;
+		color: var(--text-secondary);
+	}
+	.contact-details {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.25rem 0.75rem;
+		max-width: 19rem;
+		text-align: start;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.contact-details dt {
+		font-weight: 600;
+	}
 	:global(.draft-audience-options) {
 		margin: 0;
 		background: var(--surface);
