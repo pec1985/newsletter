@@ -1,14 +1,18 @@
 import { parseFilters } from '#lib/audience-filters.js';
 import { error, fail, redirect } from '@sveltejs/kit';
+import { countAudienceMatches } from '#lib/server/audiences.js';
 import { sql } from '#lib/server/db.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
-	await parent();
-	const plans = await sql<
-		{ plan: string }[]
-	>`select distinct plan from contacts where plan is not null order by plan`;
-	return { plans: plans.map((row) => row.plan) };
+	const { audiences } = await parent();
+	const [plans, counts] = await Promise.all([
+		sql<
+			{ plan: string }[]
+		>`select distinct plan from contacts where plan is not null order by plan`,
+		countAudienceMatches(audiences)
+	]);
+	return { plans: plans.map((row) => row.plan), matchingUsers: counts };
 };
 
 export const actions: Actions = {

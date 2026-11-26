@@ -56,6 +56,23 @@ export function audienceMatch(a: Audience) {
 	);
 }
 
+export async function countAudienceMatches(audiences: Audience[]) {
+	const counts: Record<string, number> = {};
+	// Each batch shares a contact scan. Run batches serially to bound query size and pool usage.
+	const batchSize = 64;
+	for (let start = 0; start < audiences.length; start += batchSize) {
+		const batch = audiences.slice(start, start + batchSize);
+		const columns = batch
+			.map((a) => sql`count(*) filter (where ${audienceMatch(a)}) as ${sql(a.id)}`)
+			.reduce((left, right) => sql`${left}, ${right}`);
+		const [row] = await sql<
+			Record<string, string>[]
+		>`select ${columns} from contacts c where ${selectionMatch(true, [])}`;
+		for (const audience of batch) counts[audience.id] = Number(row[audience.id]);
+	}
+	return counts;
+}
+
 function previewQuery(a: Audience) {
 	const predicates = conditions(a, (parts, ...values) =>
 		values.reduce<string>((text, value, i) => {

@@ -74,9 +74,12 @@
 			<table aria-label="Saved audiences">
 				<thead>
 					<tr>
-						<th scope="col">Audience</th><th scope="col">SQL query</th><th scope="col">
-							Actions
-						</th>
+						<th scope="col">Audience</th><th scope="col">SQL query</th><th
+							scope="col"
+							class="matching-users"
+						>
+							Count
+						</th><th scope="col"> Actions </th>
 					</tr>
 				</thead>
 				<tbody>
@@ -97,6 +100,7 @@
 									<code>{audience.query}</code>
 								</Tooltip>
 							</td>
+							<td class="matching-users">{data.matchingUsers[audience.id].toLocaleString('en')}</td>
 							<td>
 								<div class="row-actions">
 									<button
@@ -121,7 +125,7 @@
 							</td>
 						</tr>
 					{:else}
-						<tr><td colspan="3">No saved audiences yet.</td></tr>
+						<tr><td colspan="4">No saved audiences yet.</td></tr>
 					{/each}
 				</tbody>
 			</table>
@@ -331,6 +335,12 @@
 		max-width: clamp(7rem, 18vw, 23rem);
 		white-space: normal;
 		overflow-wrap: anywhere;
+	}
+	.matching-users {
+		width: 1%;
+		white-space: nowrap;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
 	}
 	.query-preview {
 		display: block;
