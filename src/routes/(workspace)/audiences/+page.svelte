@@ -78,7 +78,7 @@
 							scope="col"
 							class="matching-users"
 						>
-							Matching users
+							Count
 						</th><th scope="col"> Actions </th>
 					</tr>
 				</thead>
