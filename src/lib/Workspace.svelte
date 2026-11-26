@@ -888,6 +888,46 @@
 						{#if page.form?.saved}<p role="status">Account updated.</p>{/if}
 						<button class="primary" type="submit">Save account changes</button>
 					</form>
+				{:else if settingsTab === 'users'}
+					<form method="POST" action="?/createUser">
+						<h2>Add a user</h2>
+						<p class="field-hint">
+							New users can manage campaigns, change settings, and add other users.
+						</p>
+						<label>
+							Username<input
+								name="username"
+								value={page.form?.username ?? ''}
+								autocomplete="off"
+								maxlength="128"
+								required
+							/>
+						</label>
+						<label>
+							Password<input
+								type="password"
+								name="password"
+								autocomplete="new-password"
+								minlength="8"
+								maxlength="1024"
+								required
+							/>
+						</label>
+						<label>
+							Confirm password<input
+								type="password"
+								name="confirmation"
+								autocomplete="new-password"
+								maxlength="1024"
+								required
+							/>
+						</label>
+						{#if page.form?.error}<p role="alert">{page.form.error}</p>{/if}
+						{#if page.form?.createdUsername}<p role="status">
+								{page.form.createdUsername} can now sign in.
+							</p>{/if}
+						<button class="primary" type="submit">Add user</button>
+					</form>
 				{:else if settingsTab === 'knowledge'}<KnowledgePanel
 						{data}
 					/>{:else if settingsTab === 'api-keys'}<ApiKeysPanel

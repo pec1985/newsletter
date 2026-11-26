@@ -5,6 +5,7 @@ export const workspaceLinks = [
 
 export const settingsLinks = [
 	{ id: 'account', icon: 'users', label: 'Account' },
+	{ id: 'users', icon: 'users', label: 'Users' },
 	{ id: 'sender', icon: 'mail', label: 'Sender & signature' },
 	{ id: 'ai', icon: 'spark', label: 'AI engine' },
 	{ id: 'delivery', icon: 'send', label: 'Email delivery' },

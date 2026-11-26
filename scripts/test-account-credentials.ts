@@ -7,6 +7,7 @@ const origin = process.env.TEST_ORIGIN || 'http://127.0.0.1:5173';
 const original = 'account-test-' + randomUUID();
 const renamed = original + '-renamed';
 const taken = original + '-taken';
+const added = original + '-added';
 const password = 'original-password';
 const replacement = 'eight888';
 
@@ -32,6 +33,19 @@ const fixtures =
 try {
 	const active = await session();
 	const other = await session();
+	const createPath = '/settings/users?/createUser';
+	const fields = { username: added, password: replacement, confirmation: replacement };
+	assert.equal((await post(createPath, fields)).status, 303);
+	assert.equal((await post(createPath, { ...fields, password: 'short' }, active)).status, 400);
+	assert.equal(
+		(await post(createPath, { ...fields, confirmation: 'mismatch' }, active)).status,
+		400
+	);
+	const created = await post(createPath, fields, active);
+	assert.equal(created.status, 200);
+	assert.ok((await created.text()).includes(added + ' can now sign in.'));
+	assert.equal((await post(createPath, fields, active)).status, 409);
+	assert.equal((await login(added, replacement)).status, 303);
 	const path = '/settings/account';
 	const read = (cookie: string) =>
 		fetch(origin + path, { headers: { Cookie: cookie }, redirect: 'manual' });
@@ -70,6 +84,6 @@ try {
 	assert.equal((await lockoutChange(password)).status, 429);
 	console.log('Account credential checks passed.');
 } finally {
-	await sql`delete from users where id in ${sql(fixtures.map((row) => row.id))}`;
+	await sql`delete from users where username=${added} or id in ${sql(fixtures.map((row) => row.id))}`;
 	await sql.end();
 }
