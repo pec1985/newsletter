@@ -187,21 +187,31 @@
 	dialog.modal {
 		position: fixed;
 		margin: auto;
-		width: min(32rem, calc(100vw - 2rem));
+		width: min(35rem, calc(100vw - 2rem));
 	}
 	dialog::backdrop {
 		background: rgb(24 16 39 / 0.5);
 	}
 	dialog h2 {
-		margin: 0 0 1rem;
+		margin: 0 0 1.25rem;
 	}
 	form,
 	label {
 		display: grid;
 		gap: 0.4rem;
 	}
+	dialog label {
+		margin: 0;
+		font-size: 1rem;
+		line-height: 1.4;
+	}
+	dialog input,
+	dialog select {
+		height: 2.875rem;
+		font-size: 1rem;
+	}
 	form {
-		gap: 1rem;
+		gap: 1.25rem;
 	}
 	.filters {
 		display: grid;
@@ -209,9 +219,14 @@
 	}
 	.filter {
 		display: grid;
-		grid-template-columns: 5rem 4rem minmax(0, 1fr);
+		grid-template-columns: 6rem 4.5rem minmax(0, 1fr);
 		align-items: center;
 		gap: 0.6rem;
+	}
+	.filter select {
+		appearance: auto;
+		padding: 0 0.5rem;
+		text-align: center;
 	}
 	.equals {
 		text-align: center;
@@ -222,13 +237,24 @@
 		min-width: 0;
 	}
 	.duration {
-		display: flex;
-		gap: 0.5rem;
-		align-items: center;
+		position: relative;
+		min-width: 0;
+	}
+	.duration input {
+		padding-right: 5.25rem;
+		appearance: textfield;
+	}
+	.duration input::-webkit-inner-spin-button {
+		appearance: none;
 	}
 	.duration span {
+		position: absolute;
+		right: 0.75rem;
+		top: 50%;
+		transform: translateY(-50%);
+		pointer-events: none;
 		white-space: nowrap;
-		font-size: 0.85rem;
+		font-size: 0.9375rem;
 		color: var(--text-secondary);
 	}
 	input {
@@ -238,7 +264,18 @@
 		color: var(--text-secondary);
 	}
 	.actions {
+		padding-top: 1rem;
+		border-top: 1px solid var(--border);
 		justify-content: flex-end;
+	}
+	@media (max-width: 360px) {
+		.duration input {
+			padding-left: 0.4rem;
+			padding-right: 4.25rem;
+		}
+		.duration span {
+			right: 0.4rem;
+		}
 	}
 	@media (max-width: 520px) {
 		th,
@@ -246,7 +283,7 @@
 			padding: 0.75rem;
 		}
 		.filter {
-			grid-template-columns: 4.2rem 3.4rem minmax(0, 1fr);
+			grid-template-columns: 5rem 3.5rem minmax(0, 1fr);
 			gap: 0.35rem;
 		}
 		dialog.modal {
