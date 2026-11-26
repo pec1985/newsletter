@@ -1,7 +1,15 @@
 import { parseFilters } from '#lib/audience-filters.js';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { sql } from '#lib/server/db.js';
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ parent }) => {
+	await parent();
+	const plans = await sql<
+		{ plan: string }[]
+	>`select distinct plan from contacts where plan is not null order by plan`;
+	return { plans: plans.map((row) => row.plan) };
+};
 
 export const actions: Actions = {
 	default: async ({ request, locals }) => {
@@ -10,17 +18,24 @@ export const actions: Actions = {
 		const field = (key: string) => String(form.get(key) ?? '').trim();
 		const id = field('id');
 		const name = field('name');
-		const plan = field('plan') || null;
+		const empty = {
+			plan_empty: form.has('plan_empty'),
+			usage_empty: form.has('usage_empty'),
+			activity_empty: form.has('activity_empty')
+		};
+		const plan = empty.plan_empty ? null : field('plan') || null;
 		const comparisons = (key: string) => {
 			const operators = form.getAll(key + '_operator');
 			return form
 				.getAll(key + '_value')
 				.map((value, i) => ({ operator: String(operators[i]), value: String(value).trim() }));
 		};
-		const usage = comparisons('usage');
-		const activity = comparisons('activity');
+		const usage = empty.usage_empty ? [{ operator: '=', value: '' }] : comparisons('usage');
+		const activity = empty.activity_empty
+			? [{ operator: '<', value: '' }]
+			: comparisons('activity');
 		const invalid = (message: string) =>
-			fail(400, { message, id, values: { name, plan, usage, activity } });
+			fail(400, { message, id, values: { name, plan, usage, activity, ...empty } });
 		if (!usage.length || !activity.length) error(400, 'Reload the audience editor before saving.');
 		if (!name || name.length > 100)
 			return invalid('Give the audience a name of up to 100 characters.');
@@ -31,7 +46,7 @@ export const actions: Actions = {
 		} catch (cause) {
 			return invalid(cause instanceof Error ? cause.message : 'Invalid audience filter.');
 		}
-		const values = { name, plan, ...filters };
+		const values = { name, plan, ...filters, ...empty };
 		try {
 			if (id) {
 				const rows =

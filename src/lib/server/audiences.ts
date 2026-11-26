@@ -2,6 +2,9 @@ import { sql } from './db';
 
 // Shared by the builder, compose, review and the final delivery snapshot.
 export const audienceMatch = sql`not c.unsubscribed and not c.suppressed
+	and (not a.plan_empty or c.plan is null)
+	and (not a.usage_empty or c.usage is null)
+	and (not a.activity_empty or c.last_used_at is null)
 	and (a.plan is null or c.plan = a.plan)
 	and (a.usage_label is null or c.usage = to_jsonb(a.usage_label))
 	and (a.min_usage is null or (jsonb_typeof(c.usage) = 'number' and c.usage >= to_jsonb(a.min_usage) and (not a.min_exclusive or c.usage <> to_jsonb(a.min_usage))))

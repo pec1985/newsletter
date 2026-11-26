@@ -15,12 +15,18 @@
 	const selected = $derived(data.audiences.find((a) => a.id === editorId));
 	const values = $derived(showError ? form?.values : selected);
 
+	let planEmpty = $derived(Boolean(values?.plan_empty));
+	let usageEmpty = $derived(Boolean(values?.usage_empty));
+	let activityEmpty = $derived(Boolean(values?.activity_empty));
 	const usage = $derived(showError && form ? form.values.usage : usageRows(selected));
 	const activity = $derived(showError && form ? form.values.activity : activityRows(selected));
 
 	function openEditor(id: string) {
 		showError = false;
 		editorId = id;
+		planEmpty = Boolean(selected?.plan_empty);
+		usageEmpty = Boolean(selected?.usage_empty);
+		activityEmpty = Boolean(selected?.activity_empty);
 	}
 </script>
 
@@ -91,36 +97,67 @@
 					/>
 				</label>
 				<p>
-					Contacts must match every filter you fill in. Leave all filters blank to include every
-					eligible contact.
+					Leave a filter blank for any value. Check Empty to match contacts with no value for that
+					field.
 				</p>
 				<div class="filters">
 					<div class="filter">
 						<label for="filter-plan">Plan</label>
 						<span class="equals" aria-label="equals">=</span>
-						<input
-							id="filter-plan"
-							name="plan"
-							maxlength="200"
-							value={values?.plan ?? ''}
-							placeholder="premium"
-						/>
+						<div class="operator">
+							<select
+								class="plan-select"
+								id="filter-plan"
+								name="plan"
+								value={values?.plan ?? ''}
+								disabled={planEmpty}
+							>
+								<option value="">Any plan</option>
+								{#if values?.plan && !data.plans.includes(values.plan)}<option value={values.plan}>
+										{values.plan}
+									</option>{/if}
+								{#each data.plans as plan (plan)}<option value={plan}>{plan}</option>{/each}
+							</select>
+							<span class="operator-chevron"><Icon name="down" size={12} /></span>
+						</div>
+						<label class="empty">
+							<input
+								type="checkbox"
+								name="plan_empty"
+								aria-label="Plan is empty"
+								bind:checked={planEmpty}
+							/>Empty
+						</label>
 					</div>
 					{#each usage as rule, i (i)}
 						<div class="filter">
 							<label for={'usage-' + i}>Usage</label>
 							<div class="operator">
-								<select aria-label="Usage operator" name="usage_operator" value={rule.operator}>
+								<select
+									aria-label="Usage operator"
+									disabled={usageEmpty}
+									name="usage_operator"
+									value={rule.operator}
+								>
 									{#each usageOperators as op (op)}<option value={op}>{op}</option>{/each}
 								</select><span class="operator-chevron"><Icon name="down" size={12} /></span>
 							</div>
 							<input
 								id={'usage-' + i}
+								disabled={usageEmpty}
 								name="usage_value"
 								maxlength="402"
 								value={rule.value}
 								placeholder="Number or label"
 							/>
+							{#if i === 0}<label class="empty">
+									<input
+										type="checkbox"
+										name="usage_empty"
+										aria-label="Usage is empty"
+										bind:checked={usageEmpty}
+									/>Empty
+								</label>{/if}
 						</div>
 					{/each}
 					{#each activity as rule, i (i)}
@@ -129,6 +166,7 @@
 							<div class="operator">
 								<select
 									aria-label="Last usage operator"
+									disabled={activityEmpty}
 									name="activity_operator"
 									value={rule.operator}
 								>
@@ -139,6 +177,7 @@
 								<input
 									id={'activity-' + i}
 									aria-label="Last usage in days ago"
+									disabled={activityEmpty}
 									name="activity_value"
 									type="number"
 									min="1"
@@ -147,6 +186,14 @@
 									placeholder="30"
 								/><span>days ago</span>
 							</div>
+							{#if i === 0}<label class="empty">
+									<input
+										type="checkbox"
+										name="activity_empty"
+										aria-label="Last usage is empty"
+										bind:checked={activityEmpty}
+									/>Empty
+								</label>{/if}
 						</div>
 					{/each}
 				</div>
@@ -192,7 +239,7 @@
 	dialog.modal {
 		position: fixed;
 		margin: auto;
-		width: min(35rem, calc(100vw - 2rem));
+		width: min(40rem, calc(100vw - 2rem));
 	}
 	dialog::backdrop {
 		background: rgb(24 16 39 / 0.5);
@@ -224,7 +271,7 @@
 	}
 	.filter {
 		display: grid;
-		grid-template-columns: 6rem 4.5rem minmax(0, 1fr);
+		grid-template-columns: 6rem 4.5rem minmax(0, 1fr) 4.5rem;
 		align-items: center;
 		gap: 0.6rem;
 	}
@@ -244,6 +291,25 @@
 		appearance: none;
 		padding-inline: 0.25rem 1.5rem;
 		text-align: center;
+	}
+	.filter .plan-select {
+		text-align: start;
+		padding-inline-start: 0.75rem;
+	}
+	.filter .empty {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.875rem;
+	}
+	.filter input[type='checkbox'] {
+		width: 1rem;
+		height: 1rem;
+		accent-color: var(--accent);
+	}
+	.filter :disabled {
+		opacity: 0.55;
 	}
 	.equals {
 		text-align: center;
@@ -301,7 +367,11 @@
 		}
 		.filter {
 			grid-template-columns: 5rem 3.5rem minmax(0, 1fr);
-			gap: 0.35rem;
+			gap: 0.45rem 0.35rem;
+		}
+		.filter .empty {
+			grid-column: 3;
+			justify-self: start;
 		}
 		dialog.modal {
 			padding: 1.25rem;
