@@ -204,6 +204,16 @@ try {
 	assert.equal((await postOneClick(multipart)).status, 204);
 	const [retry] = await sql`select unsubscribed_at from contacts where id=${contactId}`;
 	assert.deepEqual(retry.unsubscribed_at, optOut.unsubscribed_at);
+	const removed = await fetch(origin + '/audiences', {
+		method: 'POST',
+		headers: { Origin: origin, Cookie: cookie, Accept: 'text/html' },
+		body: new URLSearchParams({ id: audience.id, intent: 'delete' }),
+		redirect: 'manual'
+	});
+	assert.equal(removed.status, 303);
+	assert.equal((await sql`select id from audiences where id=${audience.id}`).length, 0);
+	assert.equal((await sql`select audience_id from campaigns where id=${id}`)[0].audience_id, null);
+	assert.equal((await sql`select id from deliveries where campaign_id=${id}`).length, 1);
 	const logout = await fetch(origin + '/logout', {
 		method: 'POST',
 		headers: { Origin: origin, Cookie: cookie },

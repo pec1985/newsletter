@@ -13,28 +13,56 @@ export type Audience = {
 	active_within_days: number | null;
 };
 
-// Build only the predicates enabled for this audience.
-export function audienceMatch(a: Audience) {
-	const predicates = [sql`not c.unsubscribed and not c.suppressed`];
-	if (a.plan !== null) predicates.push(sql`c.plan = ${a.plan}`);
-	if (a.usage_label !== null) predicates.push(sql`c.usage = to_jsonb(${a.usage_label}::text)`);
-	if (a.min_usage !== null || a.max_usage !== null)
-		predicates.push(sql`jsonb_typeof(c.usage) = 'number'`);
-	if (a.min_usage !== null)
-		predicates.push(
-			sql`c.usage ${a.min_exclusive ? sql`>` : sql`>=`} to_jsonb(${a.min_usage}::numeric)`
-		);
-	if (a.max_usage !== null)
-		predicates.push(
-			sql`c.usage ${a.max_exclusive ? sql`<` : sql`<=`} to_jsonb(${a.max_usage}::numeric)`
-		);
+// Use the same conditions for parameterized delivery queries and the read-only SQL preview.
+function conditions<T>(
+	a: Audience,
+	clause: (parts: TemplateStringsArray, ...values: (string | number)[]) => T
+): T[] {
+	const predicates = [clause`NOT c.unsubscribed AND NOT c.suppressed`];
+	if (a.plan !== null) predicates.push(clause`c.plan = ${a.plan}`);
+	if (a.usage_label !== null) predicates.push(clause`c.usage = to_jsonb(${a.usage_label}::text)`);
+	if (a.min_usage !== null && a.min_usage === a.max_usage && !a.min_exclusive && !a.max_exclusive) {
+		predicates.push(clause`c.usage = to_jsonb(${a.min_usage}::numeric)`);
+	} else {
+		if (a.min_usage !== null || a.max_usage !== null)
+			predicates.push(clause`jsonb_typeof(c.usage) = 'number'`);
+		if (a.min_usage !== null)
+			predicates.push(
+				a.min_exclusive
+					? clause`c.usage > to_jsonb(${a.min_usage}::numeric)`
+					: clause`c.usage >= to_jsonb(${a.min_usage}::numeric)`
+			);
+		if (a.max_usage !== null)
+			predicates.push(
+				a.max_exclusive
+					? clause`c.usage < to_jsonb(${a.max_usage}::numeric)`
+					: clause`c.usage <= to_jsonb(${a.max_usage}::numeric)`
+			);
+	}
 	if (a.inactive_days !== null)
-		predicates.push(sql`c.last_used_at < now() - ${a.inactive_days}::integer * interval '1 day'`);
+		predicates.push(clause`c.last_used_at < now() - make_interval(days => ${a.inactive_days})`);
 	if (a.active_within_days !== null)
 		predicates.push(
-			sql`c.last_used_at >= now() - ${a.active_within_days}::integer * interval '1 day'`
+			clause`c.last_used_at >= now() - make_interval(days => ${a.active_within_days})`
 		);
-	return predicates.reduce((left, right) => sql`${left} and ${right}`);
+	return predicates;
+}
+
+export function audienceMatch(a: Audience) {
+	return conditions(a, (parts, ...values) => sql(parts, ...values)).reduce(
+		(left, right) => sql`${left} and ${right}`
+	);
+}
+
+function previewQuery(a: Audience) {
+	const predicates = conditions(a, (parts, ...values) =>
+		values.reduce<string>((text, value, i) => {
+			const literal =
+				typeof value === 'number' ? String(value) : "'" + value.replaceAll("'", "''") + "'";
+			return text + literal + parts[i + 1];
+		}, parts[0])
+	);
+	return 'SELECT c.* FROM contacts AS c\nWHERE ' + predicates.join('\n  AND ') + ';';
 }
 
 export async function audienceSummaries() {
@@ -46,7 +74,7 @@ export async function audienceSummaries() {
 			>`select count(*)::int as recipients,
 			coalesce(array_agg(distinct c.locale order by c.locale), '{}'::text[]) as locales
 			from contacts c where ${audienceMatch(audience)}`;
-			return { ...audience, ...summary };
+			return { ...audience, ...summary, query: previewQuery(audience) };
 		})
 	);
 }

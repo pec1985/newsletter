@@ -10,6 +10,7 @@
 	import AppShell from '#lib/AppShell.svelte';
 	import type { PageProps } from './$types';
 	let { data, form }: PageProps = $props();
+	let deleting = $state<{ id: string; name: string } | null>(null);
 	let editorId = $derived<string | null>(form?.id ?? page.url.searchParams.get('edit'));
 	let showError = $derived(Boolean(form?.message));
 	const selected = $derived(data.audiences.find((a) => a.id === editorId));
@@ -56,8 +57,8 @@
 			<table aria-label="Saved audiences">
 				<thead>
 					<tr>
-						<th scope="col">Audience</th><th scope="col">Eligible recipients</th><th scope="col">
-							<span class="sr-only">Actions</span>
+						<th scope="col">Audience</th><th scope="col">SQL query</th><th scope="col">
+							Actions
 						</th>
 					</tr>
 				</thead>
@@ -65,16 +66,28 @@
 					{#each data.audiences as audience (audience.id)}
 						<tr>
 							<td><strong>{audience.name}</strong></td>
-							<td>{audience.recipients.toLocaleString()}</td>
-							<td class="row-action">
-								<button
-									class="secondary"
-									aria-label={'Edit ' + audience.name}
-									aria-haspopup="dialog"
-									onclick={() => openEditor(audience.id)}
-								>
-									Edit
-								</button>
+							<td class="query"><code>{audience.query}</code></td>
+							<td>
+								<div class="row-actions">
+									<button
+										class="icon-button"
+										title="Edit audience"
+										aria-label={'Edit ' + audience.name}
+										aria-haspopup="dialog"
+										onclick={() => openEditor(audience.id)}
+									>
+										<Icon name="edit" size={18} />
+									</button>
+									<button
+										class="icon-button remove"
+										title="Delete audience"
+										aria-label={'Delete ' + audience.name}
+										aria-haspopup="dialog"
+										onclick={() => (deleting = audience)}
+									>
+										<Icon name="trash" size={18} />
+									</button>
+								</div>
 							</td>
 						</tr>
 					{:else}
@@ -84,6 +97,34 @@
 			</table>
 		</div>
 	</div>
+	{#if deleting}
+		<dialog
+			class="modal confirm"
+			aria-labelledby="delete-title"
+			aria-describedby="delete-description"
+			{@attach (node) => {
+				node.showModal();
+			}}
+			onclose={() => (deleting = null)}
+		>
+			<h2 id="delete-title">Delete audience?</h2>
+			<p id="delete-description">
+				Delete “{deleting.name}”? Drafts using this audience will need a new selection.
+			</p>
+			<form method="POST" action="/audiences" class="actions">
+				<input type="hidden" name="id" value={deleting.id} />
+				<input type="hidden" name="intent" value="delete" />
+				<button
+					type="button"
+					class="secondary"
+					onclick={(event) => event.currentTarget.closest('dialog')?.close()}
+				>
+					Cancel
+				</button>
+				<button class="delete-button">Delete audience</button>
+			</form>
+		</dialog>
+	{/if}
 	{#if editorId === '' || selected}
 		<dialog
 			class="modal"
@@ -224,7 +265,7 @@
 <style>
 	.audience-page {
 		padding: clamp(1rem, 4vw, 3rem);
-		max-width: 76rem;
+		width: 100%;
 		margin: auto;
 	}
 	header,
@@ -237,9 +278,72 @@
 	header {
 		margin-bottom: 1.5rem;
 	}
-	.row-action {
-		text-align: right;
+	table {
+		font-size: 0.9375rem;
 	}
+	th {
+		font-size: 0.875rem;
+	}
+	td {
+		vertical-align: top;
+	}
+	td:first-child {
+		width: 24%;
+	}
+	.query {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		line-height: 1.5;
+	}
+	.query code {
+		font:
+			0.875rem/1.55 ui-monospace,
+			monospace;
+	}
+	.row-actions {
+		display: flex;
+		gap: 0.35rem;
+	}
+	td:last-child {
+		width: 1%;
+	}
+	.icon-button {
+		display: grid;
+		place-items: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+	}
+	.icon-button:hover {
+		color: var(--accent);
+		background: var(--surface-muted);
+	}
+	.remove:hover {
+		color: #a71930;
+	}
+	.confirm.modal {
+		width: min(28rem, calc(100vw - 2rem));
+	}
+	.confirm .actions {
+		display: flex;
+	}
+	.delete-button {
+		background: #a71930;
+		color: white;
+		padding: 0.7rem 1rem;
+		border-radius: 7px;
+		font-weight: 600;
+	}
+	@media (max-width: 650px) {
+		.query code {
+			font-size: 0.75rem;
+		}
+		.row-actions {
+			flex-direction: column;
+		}
+	}
+
 	td:first-child {
 		white-space: normal;
 		overflow-wrap: anywhere;

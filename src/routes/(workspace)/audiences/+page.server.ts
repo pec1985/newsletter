@@ -17,6 +17,10 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const field = (key: string) => String(form.get(key) ?? '').trim();
 		const id = field('id');
+		if (field('intent') === 'delete') {
+			await sql`delete from audiences where id::text=${id}`;
+			redirect(303, '/audiences');
+		}
 		const name = field('name');
 		const empty = {
 			plan_empty: form.has('plan_empty'),

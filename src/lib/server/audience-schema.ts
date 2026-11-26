@@ -20,7 +20,13 @@ export async function migrateAudiences() {
 		)`;
 		await tx`alter table audiences add column if not exists min_exclusive boolean not null default false,
 			add column if not exists max_exclusive boolean not null default false`;
-		await tx`alter table campaigns add column if not exists audience_id uuid references audiences(id)`;
+		await tx`alter table campaigns add column if not exists audience_id uuid references audiences(id) on delete set null`;
+		await tx`do $$ begin
+			if exists (select 1 from pg_constraint where conrelid='campaigns'::regclass and conname='campaigns_audience_id_fkey' and confdeltype <> 'n') then
+				alter table campaigns drop constraint campaigns_audience_id_fkey,
+					add constraint campaigns_audience_id_fkey foreign key (audience_id) references audiences(id) on delete set null;
+			end if;
+		end $$`;
 		await tx`alter table campaigns alter column locales set default '{}'::text[]`;
 		await tx`update campaigns set locales='{}' where status='draft' and audience_id is null and cardinality(locales)>0`;
 		await tx`create index if not exists contacts_audience_plan_idx on contacts(plan) where not unsubscribed and not suppressed`;
