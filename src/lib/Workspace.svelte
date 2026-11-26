@@ -160,7 +160,7 @@
 					.join(', ') || 'Choose an audience'
 	);
 
-	async function toggleAudience(id: string | null, checked: boolean) {
+	function toggleAudience(id: string | null, checked: boolean) {
 		if (id === null) {
 			allUsers = checked;
 			audienceIds = [];
@@ -169,6 +169,10 @@
 				? [...audienceIds, id].sort()
 				: audienceIds.filter((other) => other !== id);
 		}
+		void refreshAudiencePreview();
+	}
+
+	async function refreshAudiencePreview() {
 		const request = ++previewRequest;
 		previewCount = null;
 		if (!selectionChanged) return;
@@ -217,6 +221,13 @@
 			sourceLocale = campaign.source_locale;
 			audienceIds = campaign.audience_ids;
 			allUsers = campaign.all_users;
+		} else if (campaign?.status === 'draft') {
+			const available = new Set(data.audiences.map((audience) => audience.id));
+			const remaining = audienceIds.filter((id) => available.has(id));
+			if (remaining.length !== audienceIds.length) {
+				audienceIds = remaining;
+				untrack(() => void refreshAudiencePreview());
+			}
 		}
 	});
 	$effect(() => {
