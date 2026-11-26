@@ -123,7 +123,7 @@
 							</select>
 							<span class="operator-chevron"><Icon name="down" size={12} /></span>
 						</div>
-						<label class="empty">
+						<label class="skip-filter">
 							<input
 								type="checkbox"
 								name="plan_empty"
@@ -154,7 +154,7 @@
 								value={rule.value}
 								placeholder="Number or label"
 							/>
-							{#if i === 0}<label class="empty">
+							{#if i === 0}<label class="skip-filter">
 									<input
 										type="checkbox"
 										name="usage_empty"
@@ -192,7 +192,7 @@
 									placeholder="30"
 								/><span>days ago</span>
 							</div>
-							{#if i === 0}<label class="empty">
+							{#if i === 0}<label class="skip-filter">
 									<input
 										type="checkbox"
 										name="activity_empty"
@@ -304,7 +304,7 @@
 		text-align: start;
 		padding-inline-start: 0.75rem;
 	}
-	.filter .empty {
+	.filter .skip-filter {
 		display: flex;
 		flex-direction: row;
 		align-items: center;
@@ -314,6 +314,9 @@
 	.filter input[type='checkbox'] {
 		width: 1rem;
 		height: 1rem;
+		padding: 0;
+		margin: 0;
+		flex: none;
 		accent-color: var(--accent);
 	}
 	.filter :disabled {
@@ -377,7 +380,7 @@
 			grid-template-columns: 5rem 3.5rem minmax(0, 1fr);
 			gap: 0.45rem 0.35rem;
 		}
-		.filter .empty {
+		.filter .skip-filter {
 			grid-column: 3;
 			justify-self: start;
 		}
