@@ -65,7 +65,7 @@ function previewQuery(a: Audience) {
 	const [, ...audienceConditions] = predicates;
 	return {
 		query: 'SELECT c.* FROM contacts AS c\nWHERE ' + predicates.join('\n  AND ') + ';',
-		filterSql: audienceConditions.join('\nAND ')
+		filterSql: audienceConditions.join(' AND ')
 	};
 }
 
