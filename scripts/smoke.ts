@@ -66,8 +66,10 @@ try {
 		body: new URLSearchParams({
 			name: id,
 			plan: 'smoke-test',
-			usage_label: 'frequent',
-			active_within_days: '7'
+			usage_operator: '=',
+			usage_value: 'frequent',
+			activity_operator: '>=',
+			activity_value: '7'
 		}),
 		redirect: 'manual'
 	});

@@ -18,6 +18,8 @@ export async function migrateAudiences() {
 			check (usage_label is null or (min_usage is null and max_usage is null)),
 			check (min_usage <= max_usage)
 		)`;
+		await tx`alter table audiences add column if not exists min_exclusive boolean not null default false,
+			add column if not exists max_exclusive boolean not null default false`;
 		await tx`alter table campaigns add column if not exists audience_id uuid references audiences(id)`;
 		await tx`alter table campaigns alter column locales set default '{}'::text[]`;
 		await tx`update campaigns set locales='{}' where status='draft' and audience_id is null and cardinality(locales)>0`;

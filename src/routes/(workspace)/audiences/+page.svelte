@@ -1,4 +1,10 @@
 <script lang="ts">
+	import {
+		usageRows,
+		activityRows,
+		usageOperators,
+		activityOperators
+	} from '#lib/audience-filters.js';
 	import { page } from '$app/state';
 	import AppShell from '#lib/AppShell.svelte';
 	import type { PageProps } from './$types';
@@ -7,6 +13,9 @@
 	let showError = $derived(Boolean(form?.message));
 	const selected = $derived(data.audiences.find((a) => a.id === editorId));
 	const values = $derived(showError ? form?.values : selected);
+
+	const usage = $derived(showError && form ? form.values.usage : usageRows(selected));
+	const activity = $derived(showError && form ? form.values.activity : activityRows(selected));
 
 	function openEditor(id: string) {
 		showError = false;
@@ -84,60 +93,57 @@
 					Contacts must match every filter you fill in. Leave all filters blank to include every
 					eligible contact.
 				</p>
-				<label>
-					Plan equals<input
-						name="plan"
-						maxlength="200"
-						value={values?.plan ?? ''}
-						placeholder="premium"
-					/>
-				</label>
-				<label>
-					Usage label equals<input
-						name="usage_label"
-						maxlength="200"
-						value={values?.usage_label ?? ''}
-						placeholder="frequent"
-					/>
-				</label>
-				<p>For numeric usage, leave the label blank and enter a range.</p>
-				<div class="pair">
-					<label>
-						Minimum usage<input
-							name="min_usage"
-							type="number"
-							step="any"
-							value={values?.min_usage ?? ''}
+				<div class="filters">
+					<div class="filter">
+						<label for="filter-plan">Plan</label>
+						<span class="equals" aria-label="equals">=</span>
+						<input
+							id="filter-plan"
+							name="plan"
+							maxlength="200"
+							value={values?.plan ?? ''}
+							placeholder="premium"
 						/>
-					</label>
-					<label>
-						Maximum usage<input
-							name="max_usage"
-							type="number"
-							step="any"
-							value={values?.max_usage ?? ''}
-						/>
-					</label>
-				</div>
-				<div class="pair">
-					<label>
-						Used within (days)<input
-							name="active_within_days"
-							type="number"
-							min="1"
-							max="36500"
-							value={values?.active_within_days ?? ''}
-						/>
-					</label>
-					<label>
-						Inactive for over (days)<input
-							name="inactive_days"
-							type="number"
-							min="1"
-							max="36500"
-							value={values?.inactive_days ?? ''}
-						/>
-					</label>
+					</div>
+					{#each usage as rule, i (i)}
+						<div class="filter">
+							<label for={'usage-' + i}>Usage</label>
+							<select aria-label="Usage operator" name="usage_operator" value={rule.operator}>
+								{#each usageOperators as op (op)}<option value={op}>{op}</option>{/each}
+							</select>
+							<input
+								id={'usage-' + i}
+								name="usage_value"
+								maxlength="402"
+								value={rule.value}
+								placeholder="Number or label"
+							/>
+						</div>
+					{/each}
+					{#each activity as rule, i (i)}
+						<div class="filter">
+							<label for={'activity-' + i}>Last usage</label>
+							<select
+								aria-label="Last usage operator"
+								name="activity_operator"
+								value={rule.operator}
+							>
+								{#each activityOperators as op (op)}<option value={op}>{op}</option>{/each}
+							</select>
+							<div class="duration">
+								<input
+									id={'activity-' + i}
+									aria-label="Last usage in days ago"
+									name="activity_value"
+									type="number"
+									min="1"
+									max="36500"
+									value={rule.value}
+									placeholder="30"
+								/><span>days ago</span>
+							</div>
+						</div>
+					{/each}
 				</div>
 				{#if showError}<p role="alert">{form?.message}</p>{/if}
 				<div class="actions">
@@ -197,10 +203,33 @@
 	form {
 		gap: 1rem;
 	}
-	.pair {
+	.filters {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 1rem;
+		gap: 0.75rem;
+	}
+	.filter {
+		display: grid;
+		grid-template-columns: 5rem 4rem minmax(0, 1fr);
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.equals {
+		text-align: center;
+	}
+	.filter select,
+	.filter input {
+		width: 100%;
+		min-width: 0;
+	}
+	.duration {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.duration span {
+		white-space: nowrap;
+		font-size: 0.85rem;
+		color: var(--text-secondary);
 	}
 	input {
 		min-width: 0;
@@ -216,8 +245,9 @@
 		td {
 			padding: 0.75rem;
 		}
-		.pair {
-			grid-template-columns: 1fr;
+		.filter {
+			grid-template-columns: 4.2rem 3.4rem minmax(0, 1fr);
+			gap: 0.35rem;
 		}
 		dialog.modal {
 			padding: 1.25rem;

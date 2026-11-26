@@ -4,8 +4,8 @@ import { sql } from './db';
 export const audienceMatch = sql`not c.unsubscribed and not c.suppressed
 	and (a.plan is null or c.plan = a.plan)
 	and (a.usage_label is null or c.usage = to_jsonb(a.usage_label))
-	and (a.min_usage is null or (jsonb_typeof(c.usage) = 'number' and c.usage >= to_jsonb(a.min_usage)))
-	and (a.max_usage is null or (jsonb_typeof(c.usage) = 'number' and c.usage <= to_jsonb(a.max_usage)))
+	and (a.min_usage is null or (jsonb_typeof(c.usage) = 'number' and c.usage >= to_jsonb(a.min_usage) and (not a.min_exclusive or c.usage <> to_jsonb(a.min_usage))))
+	and (a.max_usage is null or (jsonb_typeof(c.usage) = 'number' and c.usage <= to_jsonb(a.max_usage) and (not a.max_exclusive or c.usage <> to_jsonb(a.max_usage))))
 	and (a.active_within_days is null or c.last_used_at >= now() - a.active_within_days * interval '1 day')
 	and (a.inactive_days is null or c.last_used_at < now() - a.inactive_days * interval '1 day')`;
 
