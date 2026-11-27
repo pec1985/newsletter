@@ -12,6 +12,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	if (
 		![
 			'account',
+			'team',
 			'context',
 			'knowledge',
 			'ai',
@@ -23,10 +24,31 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		].includes(params.tab)
 	)
 		error(404, 'Settings page not found.');
-	return { settingsTab: params.tab };
+	const members =
+		params.tab === 'team'
+			? await sql<{ username: string }[]>`select username from users order by username`
+			: [];
+	return { settingsTab: params.tab, members };
 };
 
 export const actions: Actions = {
+	addMember: async ({ params, locals, request }) => {
+		if (params.tab !== 'team') error(404);
+		if (!locals.user) redirect(303, '/login?next=%2Fsettings%2Fteam');
+		const form = await request.formData();
+		const name = form.get('username');
+		const username = typeof name === 'string' ? name.trim() : '';
+		const password = form.get('password');
+		if (!username || username.includes('\0') || username.length > 128)
+			return fail(400, { error: 'Enter a username of up to 128 characters.' });
+		if (typeof password !== 'string' || password.length < 8 || password.length > 1024)
+			return fail(400, { username, error: 'Use a password between 8 and 1024 characters.' });
+		const [member] = await sql`insert into users (username, password_hash)
+			values (${username}, ${hashPassword(password)})
+			on conflict (username) do nothing returning id`;
+		if (!member) return fail(409, { username, error: 'That username is already in use.' });
+		return { added: username };
+	},
 	credentials: async ({ params, locals, request, cookies }) => {
 		if (params.tab !== 'account') error(404);
 		if (!locals.user) redirect(303, '/login?next=%2Fsettings%2Faccount');
