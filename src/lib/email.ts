@@ -4,7 +4,7 @@ export function personalizeEmail(text: string, name: string) {
 	return text.replaceAll('{{name}}', () => name);
 }
 
-export function renderEmail(body: string, name?: string) {
+export function renderEmail(body: string, name?: string, maxWidth?: number) {
 	return sanitizeHtml(marked.parse(body, { async: false, breaks: true }) as string, {
 		textFilter: name === undefined ? undefined : (text) => personalizeEmail(text, escapeHtml(name)),
 		allowedTags: [
@@ -23,11 +23,21 @@ export function renderEmail(body: string, name?: string) {
 			'h3',
 			'hr'
 		],
-		allowedAttributes: { a: ['href', 'title'], img: ['src', 'alt', 'width'] },
+		allowedAttributes: {
+			a: ['href', 'title'],
+			img: ['src', 'alt', 'width', ...(maxWidth ? ['style'] : [])]
+		},
 		allowedSchemes: ['https', 'http', 'mailto'],
 		allowProtocolRelative: false,
 		transformTags: {
-			img: (tagName, attribs) => ({ tagName, attribs: { ...attribs, width: '560' } })
+			img: (tagName, attribs) => ({
+				tagName,
+				attribs: {
+					...attribs,
+					width: String(Math.min(560, maxWidth ?? 560)),
+					...(maxWidth ? { style: 'max-width: 100%; height: auto;' } : {})
+				}
+			})
 		}
 	});
 }

@@ -52,3 +52,24 @@ test('custom font size styles the HTML body and default leaves it unset', () => 
 		Text: original.Text
 	});
 });
+
+test('selected widths center the complete HTML email and fit smaller screens', () => {
+	const delivery = { origin: new URL('https://newsletter.example'), token: 'abc' };
+	const withImage = { ...message, body: message.body + '\n![Photo](https://example.com/pic.png)' };
+	const original = newsletterContent(withImage, delivery, '18');
+	for (const width of ['480', '600', '720']) {
+		const content = newsletterContent(withImage, delivery, '18', width);
+		const html = content.Body.Html.Data;
+		expect(html).toStartWith(`<table role="presentation" align="center" width="${width}"`);
+		expect(html).toContain('max-width: 100%');
+		expect(html).toContain(`width="${Math.min(Number(width), 560)}"`);
+		expect(html).toContain('<td><div style="font-size: 18px">');
+		expect(html).toContain('/unsubscribe/abc');
+		expect(html).toEndWith('</div></td></tr></table>');
+		expect(content.Body.Text).toEqual(original.Body.Text);
+	}
+	expect(original.Body.Html.Data).not.toContain('<table');
+	for (const unset of ['', 'invalid']) {
+		expect(newsletterContent(withImage, delivery, '18', unset)).toEqual(original);
+	}
+});

@@ -1,4 +1,4 @@
-import { emailFontSize } from '../email-font-size';
+import { emailFontSize, emailMaxWidth } from '../email-layout';
 import { priceKeys, parsePrice } from '../ai-cost';
 import { defaultAiBaseUrl, normalizeAiBaseUrl } from './ai-config';
 import { sql } from './db';
@@ -34,6 +34,7 @@ export async function saveSettings(input: Record<string, string>) {
 		'embeddingModel',
 		'senderName',
 		'emailFontSize',
+		'emailMaxWidth',
 		'senderEmail',
 		'replyTo',
 		'signature',
@@ -49,6 +50,8 @@ export async function saveSettings(input: Record<string, string>) {
 	];
 	for (const key of allowed) {
 		if (typeof input[key] !== 'string' || input[key] === '••••••••') continue;
+		if (key === 'emailMaxWidth' && input[key] && !emailMaxWidth(input[key]))
+			throw new Error('Choose one of the available email widths.');
 		if (key === 'emailFontSize' && input[key] && !emailFontSize(input[key]))
 			throw new Error('Enter a whole font size between 1 and 999 pixels.');
 		if (priceKeys.includes(key)) parsePrice(input[key]);

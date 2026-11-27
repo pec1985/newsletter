@@ -22,7 +22,7 @@
 	import { summarizeDeliveries } from '#lib/delivery-stats.js';
 	import { workspaceLinks, settingsLinks } from '#lib/navigation.js';
 	import { summarizeSpend } from '#lib/ai-cost.js';
-	import { emailFontSize } from '#lib/email-font-size.js';
+	import { emailFontSize, emailMaxWidth, emailMaxWidths } from '#lib/email-layout.js';
 	import { renderEmail } from '#lib/email.js';
 	let {
 		data,
@@ -444,6 +444,7 @@
 			notice = 'Contact saved.';
 		});
 	}
+	const previewWidth = $derived(emailMaxWidth(config.emailMaxWidth));
 </script>
 
 <svelte:head>
@@ -641,11 +642,16 @@
 							class="email-preview"
 							style:font-size={emailFontSize(config.emailFontSize)}
 						>
-							{@html renderEmail(body)}
-							<div class="signature">{config.signature?.replaceAll('\\n', '\n')}</div>
-							<a class="unsubscribe-preview" href="#preview" onclick={(e) => e.preventDefault()}>
-								Unsubscribe
-							</a>
+							<div
+								class="email-preview-content"
+								style:max-width={previewWidth ? `${previewWidth}px` : undefined}
+							>
+								{@html renderEmail(body, undefined, previewWidth)}
+								<div class="signature">{config.signature?.replaceAll('\\n', '\n')}</div>
+								<a class="unsubscribe-preview" href="#preview" onclick={(e) => e.preventDefault()}>
+									Unsubscribe
+								</a>
+							</div>
 						</div>{/if}
 					<div class="editor-footer">
 						<span>
@@ -1302,6 +1308,18 @@
 									Use default
 								</label>
 							</div>
+							<label>
+								Email max width
+								<select
+									value={config.emailMaxWidth || ''}
+									onchange={(e) => (config.emailMaxWidth = e.currentTarget.value)}
+								>
+									<option value="">No maximum</option>
+									{#each emailMaxWidths as width (width)}
+										<option value={String(width)}>{width} px</option>
+									{/each}
+								</select>
+							</label>
 							<label>
 								Default signature<textarea rows="4" bind:value={config.signature}></textarea>
 							</label><label>

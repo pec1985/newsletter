@@ -3,7 +3,7 @@
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import { emailDirection } from '#lib/email-locale.js';
-	import { emailFontSize } from '#lib/email-font-size.js';
+	import { emailFontSize, emailMaxWidth } from '#lib/email-layout.js';
 	import { renderEmail } from '#lib/email.js';
 	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -198,6 +198,7 @@
 			busy = '';
 		}
 	}
+	const previewWidth = $derived(emailMaxWidth(data.config.emailMaxWidth));
 </script>
 
 <svelte:head><title>Review translations — {campaign.subject} — Postscript</title></svelte:head>
@@ -362,7 +363,12 @@
 								lang={selectedLocale}
 								dir={direction}
 							>
-								{@html renderEmail(current.body)}
+								<div
+									class="email-preview-content"
+									style:max-width={previewWidth ? `${previewWidth}px` : undefined}
+								>
+									{@html renderEmail(current.body, undefined, previewWidth)}
+								</div>
 							</div>
 						</article>
 						<p class="preview-note">Unsubscribe link and tracking pixel are added per recipient.</p>

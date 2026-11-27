@@ -3,7 +3,7 @@
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import { summarizeDeliveries, type DeliveryRow } from '#lib/delivery-stats.js';
-	import { emailFontSize } from '#lib/email-font-size.js';
+	import { emailFontSize, emailMaxWidth } from '#lib/email-layout.js';
 	import { renderEmail } from '#lib/email.js';
 	let { data, campaignId }: { data: LayoutData; campaignId: string } = $props();
 	const campaign = $derived(data.campaigns.find((c) => c.id === campaignId)!);
@@ -107,6 +107,7 @@
 			controller?.abort();
 		};
 	});
+	const previewWidth = $derived(emailMaxWidth(data.config.emailMaxWidth));
 </script>
 
 <section class="campaign-stats" aria-label="Campaign statistics">
@@ -318,7 +319,12 @@
 			</div>
 			<h3>{version?.subject || campaign.subject}</h3>
 			<div class="email-preview" style:font-size={emailFontSize(data.config.emailFontSize)}>
-				{@html renderEmail(version?.body || campaign.body)}
+				<div
+					class="email-preview-content"
+					style:max-width={previewWidth ? `${previewWidth}px` : undefined}
+				>
+					{@html renderEmail(version?.body || campaign.body, undefined, previewWidth)}
+				</div>
 			</div>
 		</section>
 	{/if}

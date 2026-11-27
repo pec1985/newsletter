@@ -1,13 +1,19 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { escapeHtml, personalizeEmail, renderEmail } from '../email';
 
-import { emailFontSize } from '../email-font-size';
+import { emailFontSize, emailMaxWidth } from '../email-layout';
 
 type Message = { email: string; name: string; subject: string; body: string };
 type Delivery = { origin: URL; token: string };
 
-export function newsletterContent(message: Message, delivery?: Delivery, fontSize?: string) {
-	let html = renderEmail(message.body, message.name);
+export function newsletterContent(
+	message: Message,
+	delivery?: Delivery,
+	fontSize?: string,
+	maxWidth?: string
+) {
+	const width = emailMaxWidth(maxWidth);
+	let html = renderEmail(message.body, message.name, width);
 	let text = personalizeEmail(message.body, message.name);
 	let headers;
 	if (delivery) {
@@ -23,6 +29,9 @@ export function newsletterContent(message: Message, delivery?: Delivery, fontSiz
 	}
 	const size = emailFontSize(fontSize);
 	if (size) html = `<div style="font-size: ${size}">${html}</div>`;
+	if (width) {
+		html = `<table role="presentation" align="center" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width: ${width}px; max-width: 100%; margin: 0 auto; table-layout: fixed;"><tr><td>${html}</td></tr></table>`;
+	}
 	return {
 		Headers: headers,
 		Subject: { Data: personalizeEmail(message.subject, message.name), Charset: 'UTF-8' },
@@ -60,7 +69,9 @@ export async function sendNewsletterEmail(
 			FromEmailAddress: senderAddress(config.senderEmail, config.senderName),
 			ReplyToAddresses: config.replyTo ? [config.replyTo] : undefined,
 			Destination: { ToAddresses: [message.email] },
-			Content: { Simple: newsletterContent(message, delivery, config.emailFontSize) }
+			Content: {
+				Simple: newsletterContent(message, delivery, config.emailFontSize, config.emailMaxWidth)
+			}
 		})
 	);
 	return result.MessageId || null;

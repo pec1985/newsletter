@@ -2158,3 +2158,7 @@ label.font-default {
 .font-default input {
 	width: auto;
 }
+
+.email-preview-content {
+	margin-inline: auto;
+}
