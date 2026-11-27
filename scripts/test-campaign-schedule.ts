@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { sql } from '../src/lib/server/db';
+import { listAudiences, scheduledRecipientCounts } from '../src/lib/server/audiences';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 const origin = process.env.SMOKE_ORIGIN || 'http://127.0.0.1:5173';
 let id = '';
 let contactId = '';
 let cookie = '';
+let replacementId = '';
 async function post(
 	path: string,
 	body: Record<string, unknown>,
@@ -57,6 +59,19 @@ try {
 			plan: id
 		})
 	).ids[0];
+	const [overlap] =
+		await sql`insert into audiences(name,plan) values (${id + '-overlap'},${id}) returning id`;
+	const selections = [
+		{ id: 'first', all_users: false, audience_ids: [draft.audience_id] },
+		{ id: 'second', all_users: false, audience_ids: [draft.audience_id] },
+		{ id: 'combined', all_users: false, audience_ids: [draft.audience_id, overlap.id].sort() }
+	];
+	const audiences = await listAudiences();
+	assert.deepEqual(await scheduledRecipientCounts(selections, audiences), {
+		first: 1,
+		second: 1,
+		combined: 1
+	});
 	await post('send', {}, 400);
 	const [version] =
 		await sql`insert into versions(campaign_id,locale,subject,body) values(${id},'zx','Approved subject','Approved body') returning id`;
@@ -69,10 +84,7 @@ try {
 	assert.equal(campaign.status, 'scheduled');
 	assert.equal(campaign.mode, 'local');
 	assert.equal(new Date(campaign.scheduled_at).toISOString(), scheduled_at);
-	let [delivery] = await sql`select * from deliveries where campaign_id=${id}`;
-	assert.equal(delivery.mode, 'local');
-	assert.equal(delivery.status, 'queued');
-	assert.equal(delivery.subject, 'Approved subject');
+	assert.equal((await sql`select id from deliveries where campaign_id=${id}`).length, 0);
 	await post('send', {}, 400);
 	await post('save', draft, 400);
 	const summary = await fetch(`${origin}/campaigns/${id}`, { headers: { Cookie: cookie } });
@@ -99,10 +111,34 @@ try {
 	await post('send', {}, 400);
 	await post('save', { ...draft, scheduled_at });
 	await post('send', {});
+	// Simulate a queue left by the previous scheduler, then change the audience.
+	await sql`insert into deliveries(campaign_id,contact_id,email,name,locale,subject,body,token)
+		select ${id},id,email,name,locale,'Old subject','Old body',gen_random_uuid()::text from contacts where id=${contactId}`;
+	await sql`update contacts set unsubscribed=true where id=${contactId}`;
+	assert.deepEqual(await scheduledRecipientCounts(selections, audiences), {
+		first: 0,
+		second: 0,
+		combined: 0
+	});
+	replacementId = (
+		await post('contacts', {
+			name: 'New recipient',
+			email: `new-${id}@example.invalid`,
+			locale: 'zx',
+			plan: id
+		})
+	).ids[0];
 	await sql`update campaigns set scheduled_at=now()-interval '1 second' where id=${id}`;
 	const released = await Promise.all([releaseDueCampaigns(), releaseDueCampaigns()]);
 	assert.equal(released.flat().filter((c) => c.id === id).length, 1);
 	assert.equal((await sql`select status from campaigns where id=${id}`)[0].status, 'sending');
+	const deliveries = await sql`select * from deliveries where campaign_id=${id}`;
+	assert.equal(deliveries.length, 1);
+	assert.equal(deliveries[0].contact_id, replacementId);
+	assert.equal(deliveries[0].subject, 'Approved subject');
+	assert.equal(deliveries[0].status, 'queued');
+	assert.equal(deliveries[0].mode, 'local');
+	assert.match(deliveries[0].token, /^[a-f0-9]{64}$/);
 	await post('cancel-schedule', {}, 409);
 	console.log(
 		'PASS: schedule dates, approval gate, local mode, snapshots, future/due dispatch, cancellation and duplicate dispatch.'
@@ -113,8 +149,9 @@ try {
 		await sql`delete from deliveries where campaign_id=${id}`;
 		await sql`delete from campaigns where id=${id}`;
 	}
+	if (replacementId) await sql`delete from contacts where id=${replacementId}`;
 	if (contactId) await sql`delete from contacts where id=${contactId}`;
-	await sql`delete from audiences where name=${id}`;
+	await sql`delete from audiences where name in (${id}, ${id + '-overlap'})`;
 	if (cookie)
 		await fetch(origin + '/logout', {
 			method: 'POST',
