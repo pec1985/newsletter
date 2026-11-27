@@ -2,8 +2,7 @@ import { workerLifecycle } from '../src/lib/server/worker-lifecycle';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 import { sql } from '../src/lib/server/db';
 import { settings } from '../src/lib/server/settings';
-import { renderEmail, escapeHtml, personalizeEmail } from '../src/lib/email';
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { sendNewsletterEmail } from '../src/lib/server/send-email';
 async function tick() {
 	await releaseDueCampaigns();
 	const d = await sql.begin(async (tx) => {
@@ -24,41 +23,16 @@ async function tick() {
 				const appUrl = new URL(process.env.APP_ORIGIN || '');
 				if (appUrl.protocol !== 'https:')
 					throw new Error('SES delivery requires an HTTPS APP_ORIGIN.');
-				const origin = appUrl.origin;
-				const unsubscribe = `${origin}/unsubscribe/${d.token}`;
-				const html =
-					renderEmail(d.body, d.name) +
-					`<p><a href="${escapeHtml(unsubscribe)}">Unsubscribe</a></p><img src="${escapeHtml(origin)}/track/${d.token}" width="1" height="1" alt="" />`;
-				const client = new SESv2Client({
-					region: config.awsRegion || 'eu-west-1',
-					credentials: { accessKeyId: config.awsAccessKey, secretAccessKey: config.awsSecretKey },
-					maxAttempts: 1
-				});
-				const result = await client.send(
-					new SendEmailCommand({
-						FromEmailAddress: config.senderEmail,
-						ReplyToAddresses: config.replyTo ? [config.replyTo] : undefined,
-						Destination: { ToAddresses: [d.email] },
-						Content: {
-							Simple: {
-								Headers: [
-									{ Name: 'List-ID', Value: `Newsletter <newsletter.${appUrl.hostname}>` },
-									{ Name: 'List-Unsubscribe', Value: `<${unsubscribe}/one-click>` },
-									{ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
-								],
-								Subject: { Data: personalizeEmail(d.subject, d.name), Charset: 'UTF-8' },
-								Body: {
-									Html: { Data: html, Charset: 'UTF-8' },
-									Text: {
-										Data: personalizeEmail(d.body, d.name) + '\n\nUnsubscribe: ' + unsubscribe,
-										Charset: 'UTF-8'
-									}
-								}
-							}
-						}
-					})
+				providerId = await sendNewsletterEmail(
+					config,
+					{
+						email: d.email,
+						name: d.name,
+						subject: d.subject,
+						body: d.body
+					},
+					{ origin: appUrl, token: d.token }
 				);
-				providerId = result.MessageId || null;
 			}
 			await sql`update deliveries set status='sent',sent_at=now(),provider_id=${providerId} where id=${d.id}`;
 		}

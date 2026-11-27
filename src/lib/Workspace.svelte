@@ -73,6 +73,15 @@
 	let subject = $state(initialCampaign?.subject || '');
 	let body = $state(initialCampaign?.body || '');
 	const title = $derived(subject.trim() || 'Untitled campaign');
+	let testEmail = $state('');
+	let draftActionsOpen = $state(false);
+	let draftDialog = $state<'test' | 'deadline' | null>(null);
+	let actionsButton = $state<HTMLButtonElement>();
+	function selectDraftAction(action: () => void) {
+		draftActionsOpen = false;
+		actionsButton?.focus();
+		action();
+	}
 	let message = $state('');
 	let busy = $state('');
 	let notice = $state('');
@@ -306,6 +315,17 @@
 			scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
 		});
 	}
+	async function testSend(event: SubmitEvent) {
+		event.preventDefault();
+		if (!campaign || busy) return;
+		const id = campaign.id;
+		const email = testEmail.trim();
+		await run('test-send', async () => {
+			await api('test-send', { id, email, subject, body, source_locale: sourceLocale });
+			draftDialog = null;
+			notice = `Test email sent to ${email}.`;
+		});
+	}
 	async function save() {
 		await run('save', async () => {
 			await persist();
@@ -436,7 +456,7 @@
 	>
 </svelte:head>
 <AppShell companyName={config.companyName || 'Your company'} {section} {settingsTab} {title}>
-	{#if problem}<div class="toast error" role="alert">
+	{#if problem && !draftDialog}<div class="toast error" role="alert">
 			{problem}<button aria-label="Dismiss error" onclick={() => (problem = '')}>
 				<Icon name="close" size={16} />
 			</button>
@@ -474,25 +494,54 @@
 				</p>
 			</div>
 			<div class="heading-actions">
-				{#if campaign.status === 'draft'}<DeadlinePicker
-						bind:value={scheduledAt}
-						disabled={!!busy}
-						{timezone}
-					/><span class="save-status">
+				{#if campaign.status === 'draft'}
+					<span class="save-status">
 						<Icon name={dirty ? 'edit' : 'check'} size={14} />{dirty
 							? 'Unsaved changes'
 							: 'All changes saved'}
-					</span><button class="secondary" onclick={deleteDraft} disabled={!!busy}>
-						{busy === 'delete' ? 'Deleting…' : 'Delete draft'}
-					</button><button class="secondary" onclick={save} disabled={!!busy}>
-						{busy === 'save' ? 'Saving…' : 'Save draft'}
-					</button><button
+					</span>
+					<button
+						bind:this={actionsButton}
 						class="primary"
-						onclick={review}
-						disabled={!!busy || !subject.trim() || !body.trim() || !recipientCount}
+						aria-expanded={draftActionsOpen}
+						aria-controls="draft-actions"
+						disabled={!!busy}
 					>
-						<Icon name="send" size={16} />{busy === 'review' ? 'Opening…' : 'Review & send'}
-					</button>{:else}<button class="secondary" onclick={() => invalidateAll()}>
+						Actions <Icon name="down" size={16} />
+					</button>
+					<Dropdown
+						bind:isOpen={draftActionsOpen}
+						id="draft-actions"
+						placement="bottom-end"
+						strategy="fixed"
+						triggerDelay={0}
+						class="draft-actions-menu"
+					>
+						<button onclick={() => selectDraftAction(save)}>Save draft</button>
+						<button onclick={() => selectDraftAction(() => (draftDialog = 'deadline'))}>
+							{scheduledAt ? 'Edit deadline' : 'Set deadline'}
+						</button>
+						<button
+							disabled={!subject.trim() || !body.trim()}
+							onclick={() =>
+								selectDraftAction(() => {
+									problem = '';
+									testEmail = config.senderEmail?.trim() || '';
+									draftDialog = 'test';
+								})}
+						>
+							Send test email
+						</button>
+						<button
+							disabled={!subject.trim() || !body.trim() || !recipientCount}
+							onclick={() => selectDraftAction(review)}
+						>
+							Review &amp; send
+						</button>
+						<button class="delete-action" onclick={() => selectDraftAction(deleteDraft)}>
+							Delete draft
+						</button>
+					</Dropdown>{:else}<button class="secondary" onclick={() => invalidateAll()}>
 						<Icon name="chart" size={16} /> Refresh results
 					</button>{/if}
 			</div>
@@ -1285,6 +1334,53 @@
 			<button class="primary" onclick={createCampaign}>Create a campaign</button>
 		</div>{/if}
 </AppShell>
+{#if draftDialog}
+	<div class="modal-backdrop">
+		<div
+			class="modal draft-action-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="draft-dialog-title"
+			tabindex="-1"
+			use:modal={() => (draftDialog = null)}
+		>
+			<h2 id="draft-dialog-title">
+				{draftDialog === 'test' ? 'Send test email' : 'Campaign deadline'}
+			</h2>
+			{#if draftDialog === 'test'}
+				<form onsubmit={testSend}>
+					<label>
+						Recipient email<input
+							type="email"
+							autocomplete="email"
+							required
+							maxlength="254"
+							placeholder="you@example.com"
+							bind:value={testEmail}
+							disabled={!!busy}
+						/>
+					</label>
+					{#if problem}<p class="test-send-error" role="alert">{problem}</p>{/if}
+					<div class="draft-dialog-buttons">
+						<button type="button" class="secondary" onclick={() => (draftDialog = null)}>
+							Cancel
+						</button>
+						<button type="submit" class="primary" disabled={!!busy || !testEmail.trim()}>
+							{busy === 'test-send' ? 'Sending…' : 'Send'}
+						</button>
+					</div>
+				</form>
+			{:else}
+				<DeadlinePicker
+					bind:value={scheduledAt}
+					disabled={!!busy}
+					{timezone}
+					close={() => (draftDialog = null)}
+				/>
+			{/if}
+		</div>
+	</div>
+{/if}
 {#if showContact}<div class="modal-backdrop">
 		<div
 			class="modal"

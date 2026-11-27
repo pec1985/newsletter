@@ -3,6 +3,17 @@ import { sql } from './db';
 import { generateWithConfig } from './ai';
 import { settings } from './settings';
 
+export function signedBody(body: string, locale: string, config: Record<string, string>) {
+	return (
+		body +
+		'\n\n' +
+		(locale.startsWith('es') && config.signatureEs
+			? config.signatureEs
+			: config.signature || ''
+		).replaceAll('\\n', '\n')
+	);
+}
+
 // A persisted claim prevents duplicate AI calls from concurrent review tabs.
 // Its ID also prevents late responses from replacing a newer draft or retry.
 export async function prepareTranslation(
@@ -59,12 +70,7 @@ export async function prepareTranslation(
 			subject = result.subject;
 			body = result.body;
 		}
-		body +=
-			'\n\n' +
-			(locale.startsWith('es') && config.signatureEs
-				? config.signatureEs
-				: config.signature || ''
-			).replaceAll('\\n', '\n');
+		body = signedBody(body, locale, config);
 		await sql.begin(async (tx) => {
 			const [campaign] = await tx`select status from campaigns where id=${campaignId} for update`;
 			if (!campaign || campaign.status !== 'draft') return;

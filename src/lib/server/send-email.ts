@@ -1,0 +1,48 @@
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { escapeHtml, personalizeEmail, renderEmail } from '../email';
+
+type Message = { email: string; name: string; subject: string; body: string };
+type Delivery = { origin: URL; token: string };
+
+export function newsletterContent(message: Message, delivery?: Delivery) {
+	let html = renderEmail(message.body, message.name);
+	let text = personalizeEmail(message.body, message.name);
+	let headers;
+	if (delivery) {
+		const origin = delivery.origin.origin;
+		const unsubscribe = `${origin}/unsubscribe/${delivery.token}`;
+		html += `<p><a href="${escapeHtml(unsubscribe)}">Unsubscribe</a></p><img src="${escapeHtml(origin)}/track/${delivery.token}" width="1" height="1" alt="" />`;
+		text += '\n\nUnsubscribe: ' + unsubscribe;
+		headers = [
+			{ Name: 'List-ID', Value: `Newsletter <newsletter.${delivery.origin.hostname}>` },
+			{ Name: 'List-Unsubscribe', Value: `<${unsubscribe}/one-click>` },
+			{ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
+		];
+	}
+	return {
+		Headers: headers,
+		Subject: { Data: personalizeEmail(message.subject, message.name), Charset: 'UTF-8' },
+		Body: { Html: { Data: html, Charset: 'UTF-8' }, Text: { Data: text, Charset: 'UTF-8' } }
+	};
+}
+
+export async function sendNewsletterEmail(
+	config: Record<string, string>,
+	message: Message,
+	delivery?: Delivery
+) {
+	const client = new SESv2Client({
+		region: config.awsRegion || 'eu-west-1',
+		credentials: { accessKeyId: config.awsAccessKey, secretAccessKey: config.awsSecretKey },
+		maxAttempts: 1
+	});
+	const result = await client.send(
+		new SendEmailCommand({
+			FromEmailAddress: config.senderEmail,
+			ReplyToAddresses: config.replyTo ? [config.replyTo] : undefined,
+			Destination: { ToAddresses: [message.email] },
+			Content: { Simple: newsletterContent(message, delivery) }
+		})
+	);
+	return result.MessageId || null;
+}
