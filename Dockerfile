@@ -17,6 +17,11 @@ COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile --ignore-scripts
 
 FROM base AS runtime
+# The pinned Bookworm image predates the PAM fix for CVE-2025-6020.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --only-upgrade --no-install-recommends \
+        libpam-modules libpam-modules-bin libpam-runtime libpam0g \
+    && rm -rf /var/lib/apt/lists/*
 # npm, corepack, and yarn are unused at runtime (the image runs node and bun
 # directly); removing them keeps their bundled dependencies out of the
 # vulnerability surface.
