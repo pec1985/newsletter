@@ -7,6 +7,8 @@
 	let { data, busy, oncreate }: { data: LayoutData; busy: string; oncreate: () => Promise<void> } =
 		$props();
 	let filter = $state('all');
+	let audienceFilter = $state('');
+	let newestFirst = $state(true);
 	const filters = [
 		{ id: 'all', label: 'All campaigns' },
 		{ id: 'draft', label: 'Drafts' },
@@ -15,8 +17,20 @@
 		{ id: 'sent', label: 'Sent' },
 		{ id: 'attention', label: 'Needs attention' }
 	];
+	const audienceCampaigns = $derived(
+		data.campaigns.filter((campaign) => {
+			if (!audienceFilter) return true;
+			if (campaign.all_users) return audienceFilter === 'all-users';
+			if (audienceFilter === 'unassigned') return campaign.audience_ids.length === 0;
+			return campaign.audience_ids.includes(audienceFilter);
+		})
+	);
+	const timestamp = (campaign: LayoutData['campaigns'][number]) =>
+		new Date(campaign.scheduled_at ?? campaign.updated_at).getTime();
 	const visibleCampaigns = $derived(
-		data.campaigns.filter((campaign) => filter === 'all' || campaign.status === filter)
+		audienceCampaigns
+			.filter((campaign) => filter === 'all' || campaign.status === filter)
+			.sort((a, b) => (newestFirst ? timestamp(b) - timestamp(a) : timestamp(a) - timestamp(b)))
 	);
 	const deliveryCounts = $derived.by(() => {
 		const result = new SvelteMap<string, { total: number; sent: number }>();
@@ -49,12 +63,23 @@
 				>
 					{item.label}<span>
 						{item.id === 'all'
-							? data.campaigns.length
-							: data.campaigns.filter((c) => c.status === item.id).length}
+							? audienceCampaigns.length
+							: audienceCampaigns.filter((c) => c.status === item.id).length}
 					</span>
 				</button>
 			{/each}
 		</div>
+		<label class="audience-filter">
+			Audience
+			<select bind:value={audienceFilter}>
+				<option value="">All audiences</option>
+				<option value="all-users">All users</option>
+				{#each data.audiences as audience (audience.id)}
+					<option value={audience.id}>{audience.name}</option>
+				{/each}
+				<option value="unassigned">No audience assigned</option>
+			</select>
+		</label>
 		<button class="primary create-campaign" onclick={oncreate} disabled={!!busy}>
 			<Icon name="plus" size={17} />{busy === 'new' ? 'Creating…' : 'New campaign'}
 		</button>
@@ -62,7 +87,7 @@
 	<div class="table-wrap">
 		<table>
 			<caption class="sr-only">
-				Campaigns, audiences, sending status, recipients, and last updated date
+				Campaigns, audiences, sending status, recipients, and scheduled or last updated date
 			</caption>
 			<thead>
 				<tr>
@@ -70,7 +95,14 @@
 						scope="col"
 					>
 						Recipients
-					</th><th scope="col"> Dates </th><th scope="col"><span class="sr-only">Action</span></th>
+					</th><th scope="col" aria-sort={newestFirst ? 'descending' : 'ascending'}>
+						<button
+							onclick={() => (newestFirst = !newestFirst)}
+							aria-label={newestFirst ? 'Sort dates oldest first' : 'Sort dates newest first'}
+						>
+							Dates <span aria-hidden="true">{newestFirst ? '↓' : '↑'}</span>
+						</button>
+					</th><th scope="col"><span class="sr-only">Action</span></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -141,12 +173,15 @@
 								</h2>
 								<p>
 									{data.campaigns.length
-										? 'Choose another status to find your campaigns.'
+										? 'Try another status or audience.'
 										: 'Start with a draft, choose your audience, and send when you’re ready.'}
 								</p>
 								{#if data.campaigns.length}<button
 										class="secondary"
-										onclick={() => (filter = 'all')}
+										onclick={() => {
+											filter = 'all';
+											audienceFilter = '';
+										}}
 									>
 										Show all campaigns
 									</button>{:else}<button class="primary" onclick={oncreate} disabled={!!busy}>
@@ -161,7 +196,7 @@
 	</div>
 	<div class="list-footer">
 		{visibleCampaigns.length}
-		{visibleCampaigns.length === 1 ? 'campaign' : 'campaigns'}{filter !== 'all'
+		{visibleCampaigns.length === 1 ? 'campaign' : 'campaigns'}{filter !== 'all' || audienceFilter
 			? ` of ${data.campaigns.length}`
 			: ''}
 	</div>
@@ -176,6 +211,16 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px;
+	}
+	.audience-filter {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-inline: 8px;
+		font-size: 13px;
+	}
+	.audience-filter select {
+		max-width: 18rem;
 	}
 	.create-campaign {
 		margin-left: auto;
