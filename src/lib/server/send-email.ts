@@ -26,6 +26,21 @@ export function newsletterContent(message: Message, delivery?: Delivery) {
 	};
 }
 
+export function senderAddress(email: string, senderName?: string) {
+	const name = senderName?.replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
+	if (!name) return email;
+
+	if (/^[\x20-\x7e]+$/.test(name)) {
+		return `"${name.replace(/["\\]/g, '\\$&')}" <${email}>`;
+	}
+
+	// Eleven Unicode code points fit within the MIME limit of 75 bytes per encoded word.
+	const words = name.match(/.{1,11}/gsu)!.map((part) => {
+		return `=?UTF-8?B?${Buffer.from(part).toString('base64')}?=`;
+	});
+	return `${words.join(' ')} <${email}>`;
+}
+
 export async function sendNewsletterEmail(
 	config: Record<string, string>,
 	message: Message,
@@ -38,7 +53,7 @@ export async function sendNewsletterEmail(
 	});
 	const result = await client.send(
 		new SendEmailCommand({
-			FromEmailAddress: config.senderEmail,
+			FromEmailAddress: senderAddress(config.senderEmail, config.senderName),
 			ReplyToAddresses: config.replyTo ? [config.replyTo] : undefined,
 			Destination: { ToAddresses: [message.email] },
 			Content: { Simple: newsletterContent(message, delivery) }

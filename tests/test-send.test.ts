@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { newsletterContent } from '../src/lib/server/send-email';
+import { newsletterContent, senderAddress } from '../src/lib/server/send-email';
 
 const message = {
 	email: 'editor@example.com',
@@ -29,4 +29,16 @@ test('campaign delivery retains its open pixel and one-click unsubscribe', () =>
 		Name: 'List-Unsubscribe',
 		Value: '<https://newsletter.example/unsubscribe/abc/one-click>'
 	});
+});
+
+test('newsletter From address uses the configured sender name when present', () => {
+	const email = 'info@volandoo.com';
+	expect(senderAddress(email, 'Pedro Enrique')).toBe('"Pedro Enrique" <info@volandoo.com>');
+	expect(senderAddress(email, 'Pedro "P", Enrique')).toBe(
+		'"Pedro \\"P\\", Enrique" <info@volandoo.com>'
+	);
+	expect(senderAddress(email, 'José')).toBe('=?UTF-8?B?Sm9zw6k=?= <info@volandoo.com>');
+	expect(senderAddress(email, 'Pedro\r\nEnrique')).toBe('"Pedro Enrique" <info@volandoo.com>');
+	expect(senderAddress(email)).toBe(email);
+	expect(senderAddress(email, '  ')).toBe(email);
 });
