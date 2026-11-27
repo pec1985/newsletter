@@ -1,6 +1,7 @@
 import {
 	readAudienceSelection,
 	loadSelectionSummary,
+	selectionSummary,
 	selectionMatch,
 	type Audience
 } from '#lib/server/audiences.js';
@@ -324,8 +325,19 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				const audiences = await tx<
 					Audience[]
 				>`select a.* from audiences a join campaign_audiences ca on ca.audience_id=a.id where ca.campaign_id=${locked.id} order by a.id for share of a`;
-				const contacts =
-					await tx`select c.* from contacts c where ${selectionMatch(locked.all_users, audiences)}`;
+				const predicate = selectionMatch(locked.all_users, audiences);
+				if (locked.scheduled_at) {
+					const summary = await selectionSummary(predicate, tx);
+					if (!summary.recipients) error(400, 'There are no subscribed contacts in this audience.');
+					if (summary.locales.some((locale) => !locked.locales.includes(locale)))
+						error(
+							409,
+							'The audience now includes another language. Return to the draft and review the new preview.'
+						);
+					await tx`update campaigns set status='scheduled',mode=${mode},updated_at=now() where id=${input.id}`;
+					return summary.recipients;
+				}
+				const contacts = await tx`select c.* from contacts c where ${predicate}`;
 				if (!contacts.length) error(400, 'There are no subscribed contacts in this audience.');
 				if (contacts.some((c) => !locked.locales.includes(c.locale)))
 					error(
@@ -336,7 +348,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 					const v = versions.find((v) => v.locale === c.locale)!;
 					await tx`insert into deliveries (campaign_id,contact_id,email,name,locale,subject,body,token,mode) values (${input.id},${c.id},${c.email},${c.name},${c.locale},${v.subject},${v.body},${token()},${mode})`;
 				}
-				await tx`update campaigns set status=${locked.scheduled_at ? 'scheduled' : 'sending'},mode=${mode},updated_at=now() where id=${input.id}`;
+				await tx`update campaigns set status='sending',mode=${mode},updated_at=now() where id=${input.id}`;
 				return contacts.length;
 			});
 			return json({ count });

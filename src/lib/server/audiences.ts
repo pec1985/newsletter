@@ -57,18 +57,51 @@ export function audienceMatch(a: Audience) {
 }
 
 export async function countAudienceMatches(audiences: Audience[]) {
+	return countMatches(audiences.map((a) => ({ key: a.id, predicate: audienceMatch(a) })));
+}
+
+export async function scheduledRecipientCounts(
+	campaigns: { id: string; all_users: boolean; audience_ids: string[] }[],
+	audiences: Audience[]
+) {
+	const selections = new Map<string, ReturnType<typeof selectionMatch>>();
+	// The layout query returns audience IDs in canonical order.
+	const keys = campaigns.map((campaign) => {
+		const key = campaign.all_users ? 'all' : campaign.audience_ids.join(',');
+		if (!selections.has(key)) {
+			selections.set(
+				key,
+				selectionMatch(
+					campaign.all_users,
+					audiences.filter((a) => campaign.audience_ids.includes(a.id))
+				)
+			);
+		}
+		return key;
+	});
+	const totals = await countMatches(
+		Array.from(selections, ([key, predicate]) => ({ key, predicate }))
+	);
+	return Object.fromEntries(campaigns.map((campaign, i) => [campaign.id, totals[keys[i]]]));
+}
+
+async function countMatches(
+	selections: { key: string; predicate: ReturnType<typeof selectionMatch> }[]
+) {
 	const counts: Record<string, number> = {};
 	// Each batch shares a contact scan. Run batches serially to bound query size and pool usage.
 	const batchSize = 64;
-	for (let start = 0; start < audiences.length; start += batchSize) {
-		const batch = audiences.slice(start, start + batchSize);
+	for (let start = 0; start < selections.length; start += batchSize) {
+		const batch = selections.slice(start, start + batchSize);
 		const columns = batch
-			.map((a) => sql`count(*) filter (where ${audienceMatch(a)}) as ${sql(a.id)}`)
+			.map(({ predicate }, i) => sql`count(*) filter (where ${predicate}) as ${sql(String(i))}`)
 			.reduce((left, right) => sql`${left}, ${right}`);
 		const [row] = await sql<
 			Record<string, string>[]
 		>`select ${columns} from contacts c where ${selectionMatch(true, [])}`;
-		for (const audience of batch) counts[audience.id] = Number(row[audience.id]);
+		batch.forEach(({ key }, i) => {
+			counts[key] = Number(row[i]);
+		});
 	}
 	return counts;
 }

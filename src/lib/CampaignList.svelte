@@ -145,7 +145,13 @@
 									{counts?.sent || 0} of {counts?.total || 0} sent
 								</small>{/if}
 						</td>
-						<td>{campaign.status === 'draft' ? '—' : counts?.total || 0}</td>
+						<td>
+							{campaign.status === 'scheduled'
+								? data.scheduledCounts[campaign.id]
+								: campaign.status === 'draft'
+									? '—'
+									: counts?.total || 0}
+						</td>
 						<td class="date-cell">
 							{#if campaign.scheduled_at}<small>
 									Send on {formatCampaignDate(campaign.scheduled_at)}
