@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { newsletterContent } from '../src/lib/server/send-email';
+import { newsletterContent, senderAddress } from '../src/lib/server/send-email';
 
 const message = {
 	email: 'editor@example.com',
@@ -29,4 +29,47 @@ test('campaign delivery retains its open pixel and one-click unsubscribe', () =>
 		Name: 'List-Unsubscribe',
 		Value: '<https://newsletter.example/unsubscribe/abc/one-click>'
 	});
+});
+
+test('newsletter From address uses the configured sender name when present', () => {
+	const email = 'info@volandoo.com';
+	expect(senderAddress(email, 'Pedro Enrique')).toBe('"Pedro Enrique" <info@volandoo.com>');
+	expect(senderAddress(email, 'Pedro "P", Enrique')).toBe(
+		'"Pedro \\"P\\", Enrique" <info@volandoo.com>'
+	);
+	expect(senderAddress(email, 'José')).toBe('=?UTF-8?B?Sm9zw6k=?= <info@volandoo.com>');
+	expect(senderAddress(email, 'Pedro\r\nEnrique')).toBe('"Pedro Enrique" <info@volandoo.com>');
+	expect(senderAddress(email)).toBe(email);
+	expect(senderAddress(email, '  ')).toBe(email);
+});
+
+test('custom font size styles the HTML body and default leaves it unset', () => {
+	const original = newsletterContent(message).Body;
+	expect(original.Html.Data).not.toContain('font-size');
+	expect(newsletterContent(message, undefined, '').Body).toEqual(original);
+	expect(newsletterContent(message, undefined, '18').Body).toEqual({
+		Html: { ...original.Html, Data: `<div style="font-size: 18px">${original.Html.Data}</div>` },
+		Text: original.Text
+	});
+});
+
+test('selected widths center the complete HTML email and fit smaller screens', () => {
+	const delivery = { origin: new URL('https://newsletter.example'), token: 'abc' };
+	const withImage = { ...message, body: message.body + '\n![Photo](https://example.com/pic.png)' };
+	const original = newsletterContent(withImage, delivery, '18');
+	for (const width of ['480', '600', '720']) {
+		const content = newsletterContent(withImage, delivery, '18', width);
+		const html = content.Body.Html.Data;
+		expect(html).toStartWith(`<table role="presentation" align="center" width="${width}"`);
+		expect(html).toContain('max-width: 100%');
+		expect(html).toContain(`width="${Math.min(Number(width), 560)}"`);
+		expect(html).toContain('<td><div style="font-size: 18px">');
+		expect(html).toContain('/unsubscribe/abc');
+		expect(html).toEndWith('</div></td></tr></table>');
+		expect(content.Body.Text).toEqual(original.Body.Text);
+	}
+	expect(original.Body.Html.Data).not.toContain('<table');
+	for (const unset of ['', 'invalid']) {
+		expect(newsletterContent(withImage, delivery, '18', unset)).toEqual(original);
+	}
 });

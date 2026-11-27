@@ -22,6 +22,7 @@
 	import { summarizeDeliveries } from '#lib/delivery-stats.js';
 	import { workspaceLinks, settingsLinks } from '#lib/navigation.js';
 	import { summarizeSpend } from '#lib/ai-cost.js';
+	import { emailFontSize, emailMaxWidth, emailMaxWidths } from '#lib/email-layout.js';
 	import { renderEmail } from '#lib/email.js';
 	let {
 		data,
@@ -116,6 +117,7 @@
 	let contactEmail = $state('');
 	let newLocale = $state('en');
 	let config = $state<Record<string, string>>(untrack(() => ({ ...data.config })));
+	let useDefaultFontSize = $derived(!data.config.emailFontSize);
 	let loadedStamp = initialCampaign ? `${initialCampaign.id}:${initialCampaign.updated_at}` : '';
 	let editingContactId = $state('');
 	let bodyInput = $state<HTMLTextAreaElement>();
@@ -442,6 +444,7 @@
 			notice = 'Contact saved.';
 		});
 	}
+	const previewWidth = $derived(emailMaxWidth(config.emailMaxWidth));
 </script>
 
 <svelte:head>
@@ -635,12 +638,20 @@
 							aria-label="Email body"
 							placeholder="Start with a hello. Or ask the assistant for a first draft…"
 							bind:value={body}
-							bind:this={bodyInput}></textarea>{:else}<div class="email-preview">
-							{@html renderEmail(body)}
-							<div class="signature">{config.signature?.replaceAll('\\n', '\n')}</div>
-							<a class="unsubscribe-preview" href="#preview" onclick={(e) => e.preventDefault()}>
-								Unsubscribe
-							</a>
+							bind:this={bodyInput}></textarea>{:else}<div
+							class="email-preview"
+							style:font-size={emailFontSize(config.emailFontSize)}
+						>
+							<div
+								class="email-preview-content"
+								style:max-width={previewWidth ? `${previewWidth}px` : undefined}
+							>
+								{@html renderEmail(body, undefined, previewWidth)}
+								<div class="signature">{config.signature?.replaceAll('\\n', '\n')}</div>
+								<a class="unsubscribe-preview" href="#preview" onclick={(e) => e.preventDefault()}>
+									Unsubscribe
+								</a>
+							</div>
 						</div>{/if}
 					<div class="editor-footer">
 						<span>
@@ -1270,7 +1281,46 @@
 									bind:value={config.replyTo}
 									placeholder="hello@yourcompany.com"
 								/>
-							</label><label>
+							</label>
+							<div class="field-grid">
+								<label>
+									Email font size (px)
+									<input
+										type="number"
+										min="1"
+										max="999"
+										step="1"
+										required={!useDefaultFontSize}
+										disabled={useDefaultFontSize}
+										value={config.emailFontSize || ''}
+										oninput={(e) => (config.emailFontSize = e.currentTarget.value)}
+									/>
+								</label>
+								<label class="font-default">
+									<input
+										type="checkbox"
+										checked={useDefaultFontSize}
+										onchange={(e) => {
+											useDefaultFontSize = e.currentTarget.checked;
+											config.emailFontSize = useDefaultFontSize ? '' : '16';
+										}}
+									/>
+									Use default
+								</label>
+							</div>
+							<label>
+								Email max width
+								<select
+									value={config.emailMaxWidth || ''}
+									onchange={(e) => (config.emailMaxWidth = e.currentTarget.value)}
+								>
+									<option value="">No maximum</option>
+									{#each emailMaxWidths as width (width)}
+										<option value={String(width)}>{width} px</option>
+									{/each}
+								</select>
+							</label>
+							<label>
 								Default signature<textarea rows="4" bind:value={config.signature}></textarea>
 							</label><label>
 								Spanish signature <span class="muted">Optional</span><textarea
