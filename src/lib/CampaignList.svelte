@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteMap } from 'svelte/reactivity';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import Icon from '#lib/Icon.svelte';
 	import { formatCampaignDate } from '#lib/campaign-dates.js';
@@ -18,7 +19,7 @@
 		data.campaigns.filter((campaign) => filter === 'all' || campaign.status === filter)
 	);
 	const deliveryCounts = $derived.by(() => {
-		const result = new Map<string, { total: number; sent: number }>();
+		const result = new SvelteMap<string, { total: number; sent: number }>();
 		for (const delivery of data.deliverySummaries) {
 			const counts = result.get(delivery.campaign_id) || { total: 0, sent: 0 };
 			counts.total += delivery.total;
@@ -61,20 +62,25 @@
 	<div class="table-wrap">
 		<table>
 			<caption class="sr-only">
-				Campaigns, sending status, recipients, and last updated date
+				Campaigns, audiences, sending status, recipients, and last updated date
 			</caption>
 			<thead>
 				<tr>
-					<th scope="col">Campaign</th><th scope="col">Status</th><th scope="col">Recipients</th><th
+					<th scope="col">Campaign</th><th scope="col">Audience</th><th scope="col">Status</th><th
 						scope="col"
 					>
-						Dates
-					</th><th scope="col"><span class="sr-only">Action</span></th>
+						Recipients
+					</th><th scope="col"> Dates </th><th scope="col"><span class="sr-only">Action</span></th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each visibleCampaigns as campaign (campaign.id)}
 					{@const counts = deliveryCounts.get(campaign.id)}
+					{@const audienceNames = campaign.all_users
+						? ['All users']
+						: data.audiences
+								.filter((audience) => campaign.audience_ids.includes(audience.id))
+								.map((audience) => audience.name)}
 					<tr>
 						<td class="campaign-name">
 							<a href={`/campaigns/${campaign.id}`}>
@@ -90,6 +96,15 @@
 									</small>
 								</span>
 							</a>
+						</td>
+						<td>
+							<div class="audience-list">
+								{#each audienceNames as name (name)}
+									<span class="audience-pill">{name}</span>
+								{:else}
+									No audience assigned
+								{/each}
+							</div>
 						</td>
 						<td>
 							<span class="campaign-status" data-status={campaign.status}>
@@ -116,7 +131,7 @@
 					</tr>
 				{:else}
 					<tr>
-						<td colspan="5">
+						<td colspan="6">
 							<div class="list-empty">
 								<Icon name="mail" size={28} />
 								<h2>
@@ -219,7 +234,22 @@
 		background: var(--surface-muted);
 	}
 	.campaign-name {
-		width: 45%;
+		width: 35%;
+	}
+	.audience-list {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+	}
+	.audience-pill {
+		max-width: 100%;
+		padding: 3px 9px;
+		border-radius: 999px;
+		background: var(--accent-tint);
+		color: var(--accent);
+		font-size: 12px;
+		overflow-wrap: anywhere;
 	}
 	.campaign-name a {
 		display: flex;
