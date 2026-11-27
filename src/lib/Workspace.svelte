@@ -30,7 +30,7 @@
 		settingsTab = 'context',
 		campaignId = ''
 	}: {
-		data: LayoutData;
+		data: LayoutData & { members?: { username: string }[] };
 		contactList?: ContactsData['contactList'];
 		section?: string;
 		settingsTab?: string;
@@ -984,6 +984,43 @@
 						{#if page.form?.error}<p role="alert">{page.form.error}</p>{/if}
 						{#if page.form?.saved}<p role="status">Account updated.</p>{/if}
 						<button class="primary" type="submit">Save account changes</button>
+					</form>
+				{:else if settingsTab === 'team'}
+					<h2>Current members</h2>
+					<ul>
+						{#each data.members ?? [] as member (member.username)}
+							<li>{member.username}{member.username === data.user.username ? ' (you)' : ''}</li>
+						{/each}
+					</ul>
+					<h2>Add a team member</h2>
+					<p>Members can manage campaigns and settings, including adding other team members.</p>
+					<form method="POST" action="?/addMember">
+						<label>
+							Username<input
+								name="username"
+								value={page.form?.username ?? ''}
+								autocomplete="off"
+								maxlength="128"
+								required
+							/>
+						</label>
+						<label>
+							Initial password<input
+								type="password"
+								name="password"
+								autocomplete="new-password"
+								minlength="8"
+								maxlength="1024"
+								required
+							/>
+						</label>
+						<p class="field-hint">
+							Share these credentials privately. The member can change their password in Account
+							settings.
+						</p>
+						{#if page.form?.error}<p role="alert">{page.form.error}</p>{/if}
+						{#if page.form?.added}<p role="status">{page.form.added} can now sign in.</p>{/if}
+						<button class="primary" type="submit">Add team member</button>
 					</form>
 				{:else if settingsTab === 'knowledge'}<KnowledgePanel
 						{data}
