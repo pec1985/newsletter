@@ -76,6 +76,11 @@
 			<tbody>
 				{#each visibleCampaigns as campaign (campaign.id)}
 					{@const counts = deliveryCounts.get(campaign.id)}
+					{@const audienceNames = campaign.all_users
+						? ['All users']
+						: data.audiences
+								.filter((audience) => campaign.audience_ids.includes(audience.id))
+								.map((audience) => audience.name)}
 					<tr>
 						<td class="campaign-name">
 							<a href={`/campaigns/${campaign.id}`}>
@@ -92,13 +97,14 @@
 								</span>
 							</a>
 						</td>
-						<td class="audience-cell">
-							{campaign.all_users
-								? 'All users'
-								: data.audiences
-										.filter((audience) => campaign.audience_ids.includes(audience.id))
-										.map((audience) => audience.name)
-										.join(', ') || 'No audience assigned'}
+						<td>
+							<div class="audience-list">
+								{#each audienceNames as name (name)}
+									<span class="audience-pill">{name}</span>
+								{:else}
+									No audience assigned
+								{/each}
+							</div>
 						</td>
 						<td>
 							<span class="campaign-status" data-status={campaign.status}>
@@ -230,7 +236,19 @@
 	.campaign-name {
 		width: 35%;
 	}
-	.audience-cell {
+	.audience-list {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+	}
+	.audience-pill {
+		max-width: 100%;
+		padding: 3px 9px;
+		border-radius: 999px;
+		background: var(--accent-tint);
+		color: var(--accent);
+		font-size: 12px;
 		overflow-wrap: anywhere;
 	}
 	.campaign-name a {
