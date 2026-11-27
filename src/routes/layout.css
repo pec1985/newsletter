@@ -2111,3 +2111,40 @@ summary:focus-visible {
 	pointer-events: none;
 	color: var(--text-secondary);
 }
+
+.draft-actions-menu {
+	min-width: 172px;
+	padding: 5px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgb(35 20 60 / 0.12);
+}
+.draft-actions-menu button {
+	display: block;
+	width: 100%;
+	padding: 9px 12px;
+	text-align: left;
+	font-size: 13px;
+	border-radius: 6px;
+}
+.draft-actions-menu button:is(:hover, :focus-visible) {
+	background: var(--surface-muted);
+}
+.draft-actions-menu .delete-action,
+.test-send-error {
+	color: #a12f3e;
+}
+.draft-action-dialog {
+	width: 360px;
+	padding: 24px;
+}
+.draft-action-dialog h2 {
+	margin: 0 0 20px;
+}
+.draft-dialog-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 20px;
+}

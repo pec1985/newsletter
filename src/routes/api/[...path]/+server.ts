@@ -16,7 +16,8 @@ import { json, error } from '@sveltejs/kit';
 import { sql } from '#lib/server/db.js';
 import { settings, saveSettings } from '#lib/server/settings.js';
 import { token } from '#lib/server/security.js';
-import { prepareTranslation } from '#lib/server/translations.js';
+import { sendNewsletterEmail } from '#lib/server/send-email.js';
+import { signedBody, prepareTranslation } from '#lib/server/translations.js';
 import type { RequestHandler } from './$types';
 import { audienceLocales, emailLocale, validLocale } from '#lib/email-locale.js';
 export const POST: RequestHandler = async ({ request, locals, params, url }) => {
@@ -122,6 +123,33 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			return json({ ok: true });
 		}
 		if (campaign.status !== 'draft') error(400, 'Sent campaigns are read-only.');
+		if (path === 'test-send') {
+			if (import.meta.env.DEV)
+				error(400, 'Test email requires a production build with Amazon SES configured.');
+			const email = typeof input.email === 'string' ? input.email.trim() : '';
+			if (email.length > 254 || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email))
+				error(400, 'Enter a single recipient email address.');
+			if (
+				typeof input.subject !== 'string' ||
+				!input.subject.trim() ||
+				input.subject.length > 500 ||
+				typeof input.body !== 'string' ||
+				!input.body.trim() ||
+				input.body.length > 100000 ||
+				!validLocale(input.source_locale)
+			)
+				error(400, 'Provide a subject, body and source language for the test email.');
+			const config = await settings(true);
+			if (!config.awsAccessKey || !config.awsSecretKey || !config.senderEmail)
+				error(400, 'Configure Amazon SES credentials and a sender email in Settings.');
+			await sendNewsletterEmail(config, {
+				email,
+				name: locals.user.username,
+				subject: input.subject,
+				body: signedBody(input.body, emailLocale(input.source_locale), config)
+			});
+			return json({ ok: true });
+		}
 		if (path === 'audience-preview') {
 			const selection = readAudienceSelection(input);
 			return json(await sql.begin(async (tx) => loadSelectionSummary(tx, selection)));
