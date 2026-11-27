@@ -3,6 +3,7 @@
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import { summarizeDeliveries, type DeliveryRow } from '#lib/delivery-stats.js';
+	import { emailFontSize } from '#lib/email-font-size.js';
 	import { renderEmail } from '#lib/email.js';
 	let { data, campaignId }: { data: LayoutData; campaignId: string } = $props();
 	const campaign = $derived(data.campaigns.find((c) => c.id === campaignId)!);
@@ -316,7 +317,9 @@
 				</span>
 			</div>
 			<h3>{version?.subject || campaign.subject}</h3>
-			<div class="email-preview">{@html renderEmail(version?.body || campaign.body)}</div>
+			<div class="email-preview" style:font-size={emailFontSize(data.config.emailFontSize)}>
+				{@html renderEmail(version?.body || campaign.body)}
+			</div>
 		</section>
 	{/if}
 </section>

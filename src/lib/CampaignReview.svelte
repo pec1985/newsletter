@@ -3,6 +3,7 @@
 	import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
 	import type { LayoutData } from '../routes/(workspace)/$types';
 	import { emailDirection } from '#lib/email-locale.js';
+	import { emailFontSize } from '#lib/email-font-size.js';
 	import { renderEmail } from '#lib/email.js';
 	import Icon from '#lib/Icon.svelte';
 	import AppShell from '#lib/AppShell.svelte';
@@ -355,7 +356,12 @@
 								<span>Subject</span>
 								<h3 lang={selectedLocale} dir={direction}>{current.subject}</h3>
 							</header>
-							<div class="email-preview" lang={selectedLocale} dir={direction}>
+							<div
+								class="email-preview"
+								style:font-size={emailFontSize(data.config.emailFontSize)}
+								lang={selectedLocale}
+								dir={direction}
+							>
 								{@html renderEmail(current.body)}
 							</div>
 						</article>

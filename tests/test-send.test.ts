@@ -42,3 +42,13 @@ test('newsletter From address uses the configured sender name when present', () 
 	expect(senderAddress(email)).toBe(email);
 	expect(senderAddress(email, '  ')).toBe(email);
 });
+
+test('custom font size styles the HTML body and default leaves it unset', () => {
+	const original = newsletterContent(message).Body;
+	expect(original.Html.Data).not.toContain('font-size');
+	expect(newsletterContent(message, undefined, '').Body).toEqual(original);
+	expect(newsletterContent(message, undefined, '18').Body).toEqual({
+		Html: { ...original.Html, Data: `<div style="font-size: 18px">${original.Html.Data}</div>` },
+		Text: original.Text
+	});
+});

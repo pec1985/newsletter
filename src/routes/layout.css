@@ -2148,3 +2148,13 @@ summary:focus-visible {
 	gap: 8px;
 	margin-top: 20px;
 }
+
+label.font-default {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.5rem;
+}
+.font-default input {
+	width: auto;
+}

@@ -1,10 +1,12 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { escapeHtml, personalizeEmail, renderEmail } from '../email';
 
+import { emailFontSize } from '../email-font-size';
+
 type Message = { email: string; name: string; subject: string; body: string };
 type Delivery = { origin: URL; token: string };
 
-export function newsletterContent(message: Message, delivery?: Delivery) {
+export function newsletterContent(message: Message, delivery?: Delivery, fontSize?: string) {
 	let html = renderEmail(message.body, message.name);
 	let text = personalizeEmail(message.body, message.name);
 	let headers;
@@ -19,6 +21,8 @@ export function newsletterContent(message: Message, delivery?: Delivery) {
 			{ Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
 		];
 	}
+	const size = emailFontSize(fontSize);
+	if (size) html = `<div style="font-size: ${size}">${html}</div>`;
 	return {
 		Headers: headers,
 		Subject: { Data: personalizeEmail(message.subject, message.name), Charset: 'UTF-8' },
@@ -56,7 +60,7 @@ export async function sendNewsletterEmail(
 			FromEmailAddress: senderAddress(config.senderEmail, config.senderName),
 			ReplyToAddresses: config.replyTo ? [config.replyTo] : undefined,
 			Destination: { ToAddresses: [message.email] },
-			Content: { Simple: newsletterContent(message, delivery) }
+			Content: { Simple: newsletterContent(message, delivery, config.emailFontSize) }
 		})
 	);
 	return result.MessageId || null;
