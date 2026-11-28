@@ -8,11 +8,13 @@
 		timezone = '',
 		close
 	}: { value?: string; disabled?: boolean; timezone?: string; close: () => void } = $props();
-	let month = $state(untrack(() => (value ? new Date(value) : new Date())));
+	let month = $state(
+		untrack(() => (value ? new Date(value.length === 10 ? value + 'T12:00' : value) : new Date()))
+	);
 	const weekdays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 	const monthLabel = $derived(month.toLocaleDateString('en', { month: 'long', year: 'numeric' }));
 	const selectedDay = $derived(value.slice(0, 10));
-	const time = $derived(value.slice(11, 16) || '09:00');
+	const time = $derived(value ? value.slice(11, 16) : '09:00');
 	const days = $derived.by(() => {
 		const year = month.getFullYear();
 		const m = month.getMonth();
@@ -22,7 +24,7 @@
 		);
 	});
 	function select(date: Date) {
-		value = `${localDateTime(date).slice(0, 10)}T${time}`;
+		value = localDateTime(date).slice(0, 10) + (time ? `T${time}` : '');
 	}
 </script>
 
@@ -68,8 +70,8 @@
 		value={time}
 		disabled={disabled || !value}
 		oninput={(event) => {
-			if (selectedDay && event.currentTarget.value)
-				value = `${selectedDay}T${event.currentTarget.value}`;
+			if (selectedDay)
+				value = selectedDay + (event.currentTarget.value ? `T${event.currentTarget.value}` : '');
 		}}
 	/>
 </label>
