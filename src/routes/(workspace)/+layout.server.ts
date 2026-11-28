@@ -17,7 +17,7 @@ export const load: LayoutServerLoad = async ({ locals, url, params }) => {
 		await Promise.all([
 			sql<
 				(Record<string, any> & { id: string; all_users: boolean; audience_ids: string[] })[]
-			>`select c.*,array(select ca.audience_id from campaign_audiences ca where ca.campaign_id=c.id order by ca.audience_id) as audience_ids from campaigns c order by c.created_at desc`,
+			>`select c.*,c.planned_day::text as planned_day,array(select ca.audience_id from campaign_audiences ca where ca.campaign_id=c.id order by ca.audience_id) as audience_ids from campaigns c order by c.created_at desc`,
 			params.id || pathname === '/audiences' || pathname === '/campaigns' ? listAudiences() : [],
 			sql`select * from versions where campaign_id::text=${params.id || ''} order by locale`,
 			sql<DeliverySummary[]>`select campaign_id,locale,count(*)::int as total,

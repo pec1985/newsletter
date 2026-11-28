@@ -69,7 +69,9 @@
 	let sourceLocale = $state(initialCampaign?.source_locale || 'en');
 	let showAudience = $state(false);
 	let showSpend = $state(false);
-	let scheduledAt = $state(localDateTime(initialCampaign?.scheduled_at));
+	let scheduledAt = $state(
+		localDateTime(initialCampaign?.scheduled_at) || initialCampaign?.planned_day || ''
+	);
 	let timezone = $state('');
 	let subject = $state(initialCampaign?.subject || '');
 	let body = $state(initialCampaign?.body || '');
@@ -208,7 +210,7 @@
 	const dirty = $derived(
 		section === 'campaign' &&
 			campaign?.status === 'draft' &&
-			(scheduledAt !== localDateTime(campaign.scheduled_at) ||
+			(scheduledAt !== (localDateTime(campaign.scheduled_at) || campaign.planned_day || '') ||
 				subject !== campaign.subject ||
 				body !== campaign.body ||
 				sourceLocale !== campaign.source_locale ||
@@ -228,7 +230,7 @@
 	$effect(() => {
 		if (campaign && loadedStamp !== `${campaign.id}:${campaign.updated_at}`) {
 			loadedStamp = `${campaign.id}:${campaign.updated_at}`;
-			scheduledAt = localDateTime(campaign.scheduled_at);
+			scheduledAt = localDateTime(campaign.scheduled_at) || campaign.planned_day || '';
 			subject = campaign.subject;
 			body = campaign.body;
 			sourceLocale = campaign.source_locale;
@@ -269,7 +271,7 @@
 	}
 	onMount(() => {
 		timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		scheduledAt = localDateTime(campaign?.scheduled_at);
+		scheduledAt = localDateTime(campaign?.scheduled_at) || campaign?.planned_day || '';
 		const timer = setInterval(() => {
 			if (
 				(['campaign', 'campaigns'].includes(section) &&
@@ -314,7 +316,8 @@
 			audience_ids: audienceIds,
 			all_users: allUsers,
 			source_locale: sourceLocale,
-			scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null
+			planned_day: scheduledAt.length === 10 ? scheduledAt : null,
+			scheduled_at: scheduledAt.includes('T') ? new Date(scheduledAt).toISOString() : null
 		});
 	}
 	async function testSend(event: SubmitEvent) {
@@ -349,12 +352,13 @@
 			await navigateAfterMutation('/campaigns', true);
 		});
 	}
-	async function createCampaign() {
+	async function createCampaign(day?: string) {
+		if (busy) return;
 		await run('new', async () => {
 			if (dirty) await persist();
 			if (settingsDirty && !window.confirm('Discard unsaved settings and create a campaign?'))
 				return;
-			const c = await api('campaigns', {});
+			const c = await api('campaigns', { planned_day: day });
 			await navigateAfterMutation(`/campaigns/${c.id}`);
 		});
 	}
@@ -369,6 +373,10 @@
 		});
 	}
 	async function review() {
+		if (scheduledAt.length === 10) {
+			draftDialog = 'deadline';
+			return;
+		}
 		await run('review', async () => {
 			if (!campaign) return;
 			await persist(true);
@@ -498,6 +506,13 @@
 			</div>
 			<div class="heading-actions">
 				{#if campaign.status === 'draft'}
+					{#if scheduledAt.length === 10}
+						<button class="secondary" onclick={() => (draftDialog = 'deadline')}>
+							<Icon name="calendar" size={15} />{new Date(
+								scheduledAt + 'T12:00'
+							).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · Set send time
+						</button>
+					{/if}
 					<span class="save-status">
 						<Icon name={dirty ? 'edit' : 'check'} size={14} />{dirty
 							? 'Unsaved changes'
@@ -1408,7 +1423,7 @@
 	{:else}<div class="empty">
 			<h1>A fresh start.</h1>
 			<p>Your first newsletter is one idea away.</p>
-			<button class="primary" onclick={createCampaign}>Create a campaign</button>
+			<button class="primary" onclick={() => createCampaign()}>Create a campaign</button>
 		</div>{/if}
 </AppShell>
 {#if draftDialog}

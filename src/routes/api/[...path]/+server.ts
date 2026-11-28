@@ -21,6 +21,18 @@ import { sendNewsletterEmail } from '#lib/server/send-email.js';
 import { signedBody, prepareTranslation } from '#lib/server/translations.js';
 import type { RequestHandler } from './$types';
 import { audienceLocales, emailLocale, validLocale } from '#lib/email-locale.js';
+function plannedDay(value: unknown) {
+	if (value == null) return null;
+	if (
+		typeof value !== 'string' ||
+		!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+		!Number.isFinite(Date.parse(value)) ||
+		new Date(value).toISOString().slice(0, 10) !== value ||
+		value.startsWith('0000')
+	)
+		error(400, 'Choose a valid calendar day.');
+	return value;
+}
 export const POST: RequestHandler = async ({ request, locals, params, url }) => {
 	const path = params.path;
 	if (!locals.user) error(401, 'Sign in to continue.');
@@ -95,7 +107,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 		}
 		if (path === 'campaigns') {
 			const [c] =
-				await sql`insert into campaigns (title,messages) values (${String(input.title || 'Untitled campaign').slice(0, 200)},${sql.json([{ role: 'assistant', content: 'What’s this email about? Tell me what you’re sharing and what you’d like your readers to do.' }])}) returning id`;
+				await sql`insert into campaigns (planned_day,title,messages) values (${plannedDay(input.planned_day)},${String(input.title || 'Untitled campaign').slice(0, 200)},${sql.json([{ role: 'assistant', content: 'What’s this email about? Tell me what you’re sharing and what you’d like your readers to do.' }])}) returning id`;
 			return json(c);
 		}
 		if (path === 'delete-draft') {
@@ -183,7 +195,12 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 				};
 				const scheduledAt =
 					input.scheduled_at === undefined ? locked.scheduled_at : parseDate(input.scheduled_at);
-				await tx`update campaigns set scheduled_at=${scheduledAt} where id=${input.id}`;
+				const day = scheduledAt
+					? null
+					: input.planned_day === undefined
+						? locked.planned_day
+						: plannedDay(input.planned_day);
+				await tx`update campaigns set planned_day=${day},scheduled_at=${scheduledAt} where id=${input.id}`;
 				await tx`update campaigns set title=${input.subject.trim().slice(0, 500) || 'Untitled campaign'},subject=${input.subject.trim().slice(0, 500)},body=${input.body},all_users=${selection.all},audience_id=${selection.ids.length === 1 ? selection.ids[0] : null},locales=${locales},source_locale=${emailLocale(input.source_locale)},updated_at=now() where id=${input.id} and status='draft'`;
 				if (
 					locked.subject !== input.subject.trim().slice(0, 500) ||
@@ -306,6 +323,8 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 			const count = await sql.begin(async (tx) => {
 				const [locked] = await tx`select * from campaigns where id=${input.id} for update`;
 				if (locked.status !== 'draft') error(409, 'This campaign has already been queued.');
+				if (locked.planned_day && !locked.scheduled_at)
+					error(400, 'Choose a send time or clear the planned day before sending.');
 				if (locked.scheduled_at && new Date(locked.scheduled_at).getTime() <= Date.now())
 					error(
 						400,
