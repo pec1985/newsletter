@@ -1,10 +1,5 @@
-import {
-	readAudienceSelection,
-	loadSelectionSummary,
-	selectionSummary,
-	selectionMatch,
-	type Audience
-} from '#lib/server/audiences.js';
+import { readAudienceSelection, loadSelectionSummary } from '#lib/server/audience-selection.js';
+import { selectionSummary, selectionMatch, type Audience } from '#lib/server/audiences.js';
 import { updateContact } from '#lib/server/contacts.js';
 import {
 	validationFields,
