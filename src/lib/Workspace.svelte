@@ -1330,6 +1330,33 @@
 							<div class="field-hint">
 								Signatures are included in the reviewed language versions before sending.
 							</div>
+							<hr />
+							<h3>Campaign reminders</h3>
+							<div class="reminder-fields">
+								<label>
+									Notification email <span class="muted">Optional</span>
+									<input
+										type="email"
+										maxlength="254"
+										bind:value={config.notificationEmail}
+										aria-describedby="notification-email-hint"
+									/>
+								</label>
+								<label>
+									Hours before sending
+									<input
+										type="number"
+										min="1"
+										step="1"
+										required
+										value={config.reminderHours}
+										oninput={(e) => (config.reminderHours = e.currentTarget.value)}
+									/>
+								</label>
+							</div>
+							<p id="notification-email-hint" class="field-hint">
+								Leave the email blank to turn off campaign reminders.
+							</p>
 						{:else if settingsTab === 'delivery'}
 							<label>
 								AWS region<input bind:value={config.awsRegion} placeholder="eu-west-1" />

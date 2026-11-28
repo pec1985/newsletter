@@ -334,7 +334,7 @@ export const POST: RequestHandler = async ({ request, locals, params, url }) => 
 							409,
 							'The audience now includes another language. Return to the draft and review the new preview.'
 						);
-					await tx`update campaigns set status='scheduled',mode=${mode},updated_at=now() where id=${input.id}`;
+					await tx`update campaigns set status='scheduled',reminder_sent_at=null,reminder_retry_at=null,mode=${mode},updated_at=now() where id=${input.id}`;
 					return summary.recipients;
 				}
 				const contacts = await tx`select c.* from contacts c where ${predicate}`;

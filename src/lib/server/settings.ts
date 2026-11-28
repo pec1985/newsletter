@@ -13,6 +13,7 @@ export async function settings(reveal = false): Promise<Record<string, string>> 
 	}
 	return {
 		...values,
+		reminderHours: values.reminderHours || '24',
 		aiBaseUrl: values.aiBaseUrl || defaultAiBaseUrl,
 		aiDraftModel: values.aiDraftModel || values.aiModel || 'gpt-4.1-mini',
 		aiTranslationModel: values.aiTranslationModel || values.aiModel || 'gpt-4.1-mini',
@@ -37,6 +38,8 @@ export async function saveSettings(input: Record<string, string>) {
 		'emailMaxWidth',
 		'senderEmail',
 		'replyTo',
+		'notificationEmail',
+		'reminderHours',
 		'signature',
 		'signatureEs',
 		'awsRegion',
@@ -54,6 +57,20 @@ export async function saveSettings(input: Record<string, string>) {
 			throw new Error('Choose one of the available email widths.');
 		if (key === 'emailFontSize' && input[key] && !emailFontSize(input[key]))
 			throw new Error('Enter a whole font size between 1 and 999 pixels.');
+		if (key === 'reminderHours') {
+			const hours = Number(input[key]);
+			if (!Number.isSafeInteger(hours) || hours < 1)
+				throw new Error('Enter a positive whole number of hours before sending.');
+			values[key] = String(hours);
+			continue;
+		}
+		if (key === 'notificationEmail') {
+			const email = input[key].trim();
+			if (email && (email.length > 254 || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email)))
+				throw new Error('Enter a valid notification email address.');
+			values[key] = email;
+			continue;
+		}
 		if (priceKeys.includes(key)) parsePrice(input[key]);
 		if (input[key].length > 20000) throw new Error('Setting is too long.');
 		if (key === 'aiBaseUrl' || (key === 'embeddingBaseUrl' && input[key].trim())) {

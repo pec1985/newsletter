@@ -1,4 +1,5 @@
 import { workerLifecycle } from '../src/lib/server/worker-lifecycle';
+import { sendDueReminder } from '../src/lib/server/campaign-reminders';
 import { releaseDueCampaigns } from '../src/lib/server/campaign-scheduler';
 import { sql } from '../src/lib/server/db';
 import { settings } from '../src/lib/server/settings';
@@ -43,15 +44,19 @@ async function tick() {
 	return true;
 }
 console.log('Newsletter worker running. Local deliveries do not send email.');
-const lifecycle = workerLifecycle();
-while (!lifecycle.stopping) {
-	try {
-		if (!(await tick())) await lifecycle.sleep(1500);
-	} catch (e) {
-		console.error(e);
-		await lifecycle.sleep(5000);
+async function runWorker(job: () => Promise<boolean>, idleMs: number) {
+	const lifecycle = workerLifecycle();
+	while (!lifecycle.stopping) {
+		try {
+			if (!(await job())) await lifecycle.sleep(idleMs);
+		} catch (e) {
+			console.error(e);
+			await lifecycle.sleep(5000);
+		}
 	}
+
+	lifecycle.close();
 }
 
+await Promise.all([runWorker(tick, 1500), runWorker(sendDueReminder, 30000)]);
 await sql.end({ timeout: 5 });
-lifecycle.close();
